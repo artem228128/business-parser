@@ -8,8 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Query
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from web.index_db import connect
@@ -59,6 +59,18 @@ class RestoreApiPrefix:
 
 
 app.add_middleware(RestoreApiPrefix)
+
+
+@app.exception_handler(404)
+async def show_path_on_404(request: Request, _exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Not Found",
+            "path": request.url.path,
+            "root_path": request.scope.get("root_path") or "",
+        },
+    )
 
 
 def db() -> sqlite3.Connection:

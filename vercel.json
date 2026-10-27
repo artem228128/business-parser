@@ -1,11 +1,8 @@
 {
   "functions": {
-    "api/index.py": {
+    "index.py": {
       "maxDuration": 30,
-      "includeFiles": "data/**"
+      "includeFiles": "{data/handelskaart.sqlite.gz,web/static/**}"
     }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index.py" }
-  ]
+  }
 }
