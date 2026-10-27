@@ -30,6 +30,36 @@ CATEGORIES = [
 app = FastAPI(title="Handelskaart")
 DB: sqlite3.Connection | None = None
 
+# api/index.py is mounted at /api, so Vercel calls this app with /stats, not /api/stats.
+_API_TAILS = (
+    "/stats",
+    "/cities",
+    "/industries",
+    "/search",
+    "/points",
+    "/bounds",
+    "/company",
+    "/export",
+    "/health",
+)
+
+
+class RestoreApiPrefix:
+    def __init__(self, asgi):
+        self.asgi = asgi
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path") or "/"
+            if any(path == tail or path.startswith(tail + "/") for tail in _API_TAILS):
+                scope = dict(scope)
+                scope["path"] = "/api" + path
+                scope["raw_path"] = scope["path"].encode()
+        await self.asgi(scope, receive, send)
+
+
+app.add_middleware(RestoreApiPrefix)
+
 
 def db() -> sqlite3.Connection:
     global DB
@@ -124,6 +154,27 @@ def row_dict(r: sqlite3.Row) -> dict[str, Any]:
         "lon": r["lon"],
         "source": r["source"],
     }
+
+
+@app.get("/api/health")
+def health() -> dict[str, Any]:
+    from web.index_db import INDEX_DB, INDEX_GZ, prepare_index
+
+    info: dict[str, Any] = {
+        "gz": str(INDEX_GZ),
+        "gz_exists": INDEX_GZ.exists(),
+        "sqlite": str(INDEX_DB),
+        "sqlite_exists": INDEX_DB.exists(),
+    }
+    try:
+        path = prepare_index()
+        info["db"] = str(path)
+        info["rows"] = db().execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        info["ok"] = True
+    except Exception as exc:  # noqa: BLE001
+        info["ok"] = False
+        info["error"] = f"{type(exc).__name__}: {exc}"
+    return info
 
 
 @app.get("/api/stats")
