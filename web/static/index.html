@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Handelskaart — Dutch businesses</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,480;9..144,640&family=Outfit:wght@360;500;640&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/vendor/leaflet.css" />
+  <link rel="stylesheet" href="/vendor/MarkerCluster.css" />
+  <link rel="stylesheet" href="/vendor/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel">
+      <header class="brand">
+        <p class="kicker">Open register · OSM</p>
+        <h1>Handelskaart</h1>
+      </header>
+
+      <label class="search">
+        <span class="sr">Search</span>
+        <input id="q" type="search" placeholder="Name, street, industry…" autocomplete="off" />
+        <kbd>/</kbd>
+      </label>
+
+      <div class="filter-stack">
+        <label>
+          Category
+          <select id="category">
+            <option value="">All categories</option>
+          </select>
+        </label>
+        <label>
+          Type
+          <select id="industry">
+            <option value="">All types</option>
+          </select>
+        </label>
+        <label class="city-field">
+          City
+          <input id="city" placeholder="Start typing a city" autocomplete="off" />
+          <ul id="city-suggest" class="suggest hidden"></ul>
+        </label>
+        <label>
+          Sort
+          <select id="sort">
+            <option value="name">Name A–Z</option>
+            <option value="contacts">Most complete contacts</option>
+            <option value="city">City A–Z</option>
+            <option value="industry">Type A–Z</option>
+          </select>
+        </label>
+      </div>
+
+      <fieldset class="must">
+        <legend>Must have</legend>
+        <label><input type="checkbox" data-flag="has_website" /> Website</label>
+        <label><input type="checkbox" data-flag="has_email" /> Email</label>
+        <label><input type="checkbox" data-flag="has_phone" /> Phone</label>
+        <label><input type="checkbox" data-flag="has_kvk" /> KVK number</label>
+      </fieldset>
+
+      <div class="meta-row">
+        <p id="count">Loading atlas…</p>
+        <button type="button" id="reset" class="ghost">Reset</button>
+        <button type="button" id="export" class="ghost">CSV</button>
+      </div>
+
+      <div id="results" class="results"></div>
+      <div class="pager">
+        <button type="button" id="prev" disabled>Prev</button>
+        <span id="page"></span>
+        <button type="button" id="next" disabled>Next</button>
+      </div>
+    </aside>
+
+    <main class="mapwrap">
+      <div id="map"></div>
+      <div id="hint" class="hint hidden"></div>
+      <article id="detail" class="detail hidden"></article>
+    </main>
+  </div>
+  <script src="/vendor/leaflet.js"></script>
+  <script src="/vendor/leaflet.markercluster.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
