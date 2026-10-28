@@ -251,6 +251,33 @@ body {
   text-align: left;
 }
 .card:hover, .card.active { border-color: var(--accent); }
+.card.active {
+  background: #fff6eb;
+  box-shadow: 0 0 0 2px rgba(184, 74, 31, 0.22);
+}
+.selected-pill {
+  flex: 0 0 auto;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: #fff6eb;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.selected-pill strong {
+  font-weight: 640;
+  display: block;
+  font-family: var(--serif);
+  letter-spacing: -0.02em;
+}
+.selected-pill span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.leaflet-popup-content { margin: 10px 12px; font: 500 13px var(--sans); }
+.leaflet-popup-content strong { font-family: var(--serif); }
 .card h3 {
   margin: 0 0 4px;
   font: 640 16px var(--serif);

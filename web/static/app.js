@@ -85,6 +85,8 @@ const I18N = {
     allCategories: "All categories",
     allTypes: "All types",
     clear: "Clear",
+    selectedHint: "Selected · tap to open",
+    onMap: "Shown on map",
     title: "Handelskaart — Dutch businesses",
   },
   ru: {
@@ -139,6 +141,8 @@ const I18N = {
     allCategories: "Все категории",
     allTypes: "Все типы",
     clear: "Очистить",
+    selectedHint: "Выбрано · нажмите для карточки",
+    onMap: "На карте",
     title: "Handelskaart — компании Нидерландов",
   },
 };
@@ -577,15 +581,58 @@ function qs() {
 }
 
 let map, cluster, debounceTimer, mapTimer, cityTimer, filterSeq = 0;
+const markerById = new Map();
+let selectedMapId = null;
 
-function pinIcon(cat) {
+function pinIcon(cat, selected = false) {
   const c = CAT_COLORS[cat] || CAT_COLORS.other;
+  const size = selected ? 18 : 12;
+  const border = selected ? 3 : 2;
+  const shadow = selected
+    ? "0 0 0 3px rgba(184,74,31,.4), 0 2px 6px rgba(0,0,0,.35)"
+    : "0 1px 4px rgba(0,0,0,.35)";
   return L.divIcon({
     className: "hk-pin",
-    html: `<span style="display:block;width:12px;height:12px;border-radius:50%;background:${c};border:2px solid #f8f1e2;box-shadow:0 1px 4px rgba(0,0,0,.35)"></span>`,
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
+    html: `<span style="display:block;width:${size}px;height:${size}px;border-radius:50%;background:${c};border:${border}px solid #f8f1e2;box-shadow:${shadow}"></span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+}
+
+function setMapMarkerSelection(id, category) {
+  if (selectedMapId && markerById.has(selectedMapId)) {
+    const prev = markerById.get(selectedMapId);
+    prev.setIcon(pinIcon(prev._hkCat, false));
+    prev.closePopup();
+  }
+  selectedMapId = id || null;
+  if (!id || !markerById.has(id)) return;
+  const m = markerById.get(id);
+  m.setIcon(pinIcon(category || m._hkCat, true));
+  m.openPopup();
+}
+
+function focusCompanyInList(id) {
+  const box = $("results");
+  if (!box) return false;
+  const el = box.querySelector(`.card[data-id="${id}"]`);
+  if (!el) return false;
+  el.classList.add("active");
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return true;
+}
+
+function paintSelectedPill(r, inList) {
+  const pill = $("selected-pill");
+  if (!pill) return;
+  if (!r || inList) {
+    pill.classList.add("hidden");
+    pill.innerHTML = "";
+    return;
+  }
+  pill.classList.remove("hidden");
+  pill.innerHTML = `<strong>${esc(r.company_name)}</strong><span>${esc(t("selectedHint"))}</span>`;
+  pill.onclick = () => paintDetail(r);
 }
 
 function fmt(n) {
@@ -887,6 +934,10 @@ async function loadList() {
   $("next").disabled = data.page >= data.pages;
   lastResults = data.results;
   paintResults();
+  if (lastCompany) {
+    const inList = focusCompanyInList(lastCompany.id);
+    paintSelectedPill(lastCompany, inList);
+  }
 }
 
 function paintResults() {
@@ -929,14 +980,20 @@ async function loadPoints() {
   const data = await (await fetch(`/api/points?${p}`)).json();
   if (seq !== filterSeq) return;
   cluster.clearLayers();
+  markerById.clear();
   const layers = [];
   for (const pt of data.points) {
     if (pt.lat == null || pt.lon == null) continue;
     const m = L.marker([pt.lat, pt.lon], { icon: pinIcon(pt.category), title: pt.name });
-    m.on("click", () => openCompany(pt.id, false));
+    m._hkCat = pt.category;
+    m._hkId = pt.id;
+    markerById.set(pt.id, m);
+    m.bindPopup(`<strong>${esc(pt.name)}</strong><br><span style="color:#6b6458;font-size:11px">${esc(t("onMap"))}</span>`);
+    m.on("click", () => openCompany(pt.id, true));
     layers.push(m);
   }
   cluster.addLayers(layers);
+  if (lastCompany?.id) setMapMarkerSelection(lastCompany.id, lastCompany.category);
   if (data.truncated) hintMode = "zoom";
   else if (!layers.length) hintMode = "empty";
   else hintMode = "hidden";
@@ -945,8 +1002,10 @@ async function loadPoints() {
 
 async function openCompany(id, fly) {
   const r = await (await fetch(`/api/company/${id}`)).json();
+  if (r.error) return;
   lastCompany = r;
   paintDetail(r);
+  setMapMarkerSelection(r.id, r.category);
   if (fly && r.lat && r.lon && map) {
     if (window.matchMedia("(max-width: 800px)").matches) setView("map");
     state.skipMove = true;
@@ -981,10 +1040,15 @@ function paintDetail(r) {
   d.querySelector(".close").onclick = () => {
     d.classList.add("hidden");
     lastCompany = null;
+    setMapMarkerSelection(null);
+    paintSelectedPill(null, true);
+    for (const el of $("results").querySelectorAll(".card")) el.classList.remove("active");
   };
   for (const el of $("results").querySelectorAll(".card")) {
     el.classList.toggle("active", +el.dataset.id === r.id);
   }
+  const inList = focusCompanyInList(r.id);
+  paintSelectedPill(r, inList);
 }
 
 function row(label, value) {
