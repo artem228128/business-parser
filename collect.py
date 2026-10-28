@@ -18,6 +18,10 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+ROOT = Path(__file__).resolve().parent
+MAIN_SQLITE = ROOT / "data" / "netherlands.sqlite"
+MAIN_CSV = ROOT / "data" / "netherlands.csv"
+
 OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
@@ -113,7 +117,11 @@ BUSINESS_AMENITIES = {
     "training",
 }
 
-SKIP_OFFICES = {"government", "diplomatic", "ngo", "association", "political_party", "religion"}
+# OSM office=* — separate collect via --public-offices; excluded from default --nl/--city
+PUBLIC_OFFICE_TYPES = frozenset(
+    {"government", "diplomatic", "ngo", "association", "political_party", "religion"}
+)
+PUBLIC_OFFICE_OVERPASS = "|".join(sorted(PUBLIC_OFFICE_TYPES))
 
 FIELDS = [
     "company_name",
@@ -209,15 +217,17 @@ def osm_url(el: dict) -> str:
     return f"https://www.openstreetmap.org/{el['type']}/{el['id']}"
 
 
-def is_business(el: dict) -> bool:
+def is_business(el: dict, *, public_offices_only: bool = False) -> bool:
     tags = el.get("tags") or {}
     name = first(tags.get("name"), tags.get("name:nl"), tags.get("name:en"))
     if not name:
         return False
+    office = tags.get("office")
+    if public_offices_only:
+        return office in PUBLIC_OFFICE_TYPES
     if tags.get("shop") or tags.get("craft"):
         return True
-    office = tags.get("office")
-    if office and office not in SKIP_OFFICES:
+    if office and office not in PUBLIC_OFFICE_TYPES:
         return True
     if tags.get("tourism") in {"hotel", "motel", "guest_house", "hostel", "apartment", "chalet"}:
         return True
@@ -253,17 +263,23 @@ def to_record(el: dict, verified: str) -> dict[str, str]:
     }
 
 
-def overpass_query(area_filter: str, timeout: int) -> str:
-    return f"""
-[out:json][timeout:{timeout}];
-{area_filter}
-(
+def overpass_query(area_filter: str, timeout: int, *, public_offices_only: bool = False) -> str:
+    if public_offices_only:
+        body = f'  nwr["office"~"{PUBLIC_OFFICE_OVERPASS}"]["name"](area.a);'
+    else:
+        body = """
   nwr["shop"]["name"](area.a);
   nwr["office"]["name"](area.a);
   nwr["craft"]["name"](area.a);
   nwr["company"]["name"](area.a);
   nwr["tourism"~"hotel|motel|guest_house|hostel"]["name"](area.a);
   nwr["amenity"~"restaurant|cafe|fast_food|bar|pub|pharmacy|bank|clinic|dentist|doctors|veterinary|studio|theatre|cinema|nightclub|fuel|car_rental|car_wash|post_office|hairdresser|marketplace"]["name"](area.a);
+""".strip()
+    return f"""
+[out:json][timeout:{timeout}];
+{area_filter}
+(
+{body}
 );
 out center tags;
 """.strip()
@@ -288,13 +304,22 @@ def fetch_overpass(query: str, session: requests.Session) -> list[dict]:
     raise RuntimeError(f"Overpass failed: {last_err}")
 
 
-def collect_area(session: requests.Session, area_ql: str, timeout: int) -> list[dict]:
+def collect_area(
+    session: requests.Session,
+    area_ql: str,
+    timeout: int,
+    *,
+    public_offices_only: bool = False,
+) -> list[dict]:
     verified = date.today().isoformat()
-    elements = fetch_overpass(overpass_query(area_ql, timeout), session)
+    elements = fetch_overpass(
+        overpass_query(area_ql, timeout, public_offices_only=public_offices_only),
+        session,
+    )
     rows = []
     seen: set[tuple[str, str]] = set()
     for el in elements:
-        if not is_business(el):
+        if not is_business(el, public_offices_only=public_offices_only):
             continue
         rec = to_record(el, verified)
         key = (rec["company_name"].lower(), rec["business_address"].lower() or rec["source_url"])
@@ -305,17 +330,23 @@ def collect_area(session: requests.Session, area_ql: str, timeout: int) -> list[
     return rows
 
 
-def collect_city(session: requests.Session, city: str, timeout: int) -> list[dict]:
+def collect_city(
+    session: requests.Session,
+    city: str,
+    timeout: int,
+    *,
+    public_offices_only: bool = False,
+) -> list[dict]:
     ql = f'area["name"="{city}"]["admin_level"="8"]->.a;'
-    return collect_area(session, ql, timeout)
+    return collect_area(session, ql, timeout, public_offices_only=public_offices_only)
 
 
-def collect_nl(session: requests.Session, timeout: int) -> list[dict]:
+def collect_nl(session: requests.Session, timeout: int, *, public_offices_only: bool = False) -> list[dict]:
     all_rows: list[dict] = []
     for iso, name in NL_PROVINCES.items():
         print(f"[osm] {name} ({iso})", file=sys.stderr)
         ql = f'area["ISO3166-2"="{iso}"]->.a;'
-        rows = collect_area(session, ql, timeout)
+        rows = collect_area(session, ql, timeout, public_offices_only=public_offices_only)
         print(f"[osm] {name}: {len(rows)}", file=sys.stderr)
         all_rows.extend(rows)
         time.sleep(8)
@@ -477,6 +508,38 @@ def write_sqlite(path: Path, rows: list[dict]) -> None:
     con.close()
 
 
+def merge_csv(path: Path, rows: list[dict]) -> int:
+    """Upsert rows into CSV by source_url. Returns total row count in file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    by_url: dict[str, dict[str, str]] = {}
+    if path.exists():
+        with path.open(newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                url = (row.get("source_url") or "").strip()
+                if url:
+                    by_url[url] = {k: row.get(k, "") or "" for k in FIELDS}
+    for row in rows:
+        url = (row.get("source_url") or "").strip()
+        if not url:
+            continue
+        by_url[url] = {k: row.get(k, "") or "" for k in FIELDS}
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=FIELDS)
+        w.writeheader()
+        for row in by_url.values():
+            w.writerow(row)
+    return len(by_url)
+
+
+def merge_into_main(rows: list[dict]) -> tuple[int, int]:
+    """Upsert into data/netherlands.sqlite and .csv. Returns (sqlite_total, batch_size)."""
+    if not rows:
+        return 0, 0
+    write_sqlite(MAIN_SQLITE, rows)
+    total = merge_csv(MAIN_CSV, rows)
+    return total, len(rows)
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Collect NL businesses from OSM (open). Optional paid KVK / Google Places.")
     g = p.add_mutually_exclusive_group(required=True)
@@ -493,6 +556,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--kvk-city", help="City name for paid KVK search")
     p.add_argument("--google-key", help="Google Places API key")
     p.add_argument("--google-query", default="bedrijven in Nederland")
+    p.add_argument(
+        "--public-offices",
+        action="store_true",
+        help="Only OSM office=government|diplomatic|ngo|association|political_party|religion (with --city or --nl)",
+    )
     return p.parse_args()
 
 
@@ -511,12 +579,20 @@ def main() -> int:
         )
         return 0
 
+    if args.public_offices and not (args.city or args.nl):
+        print("error: --public-offices requires --city or --nl", file=sys.stderr)
+        return 2
+
+    po = args.public_offices
     rows: list[dict] = []
     if args.city:
-        print(f"[osm] city={args.city}", file=sys.stderr)
-        rows = collect_city(session, args.city, args.timeout)
+        label = "public offices" if po else "city"
+        print(f"[osm] {label}={args.city}", file=sys.stderr)
+        rows = collect_city(session, args.city, args.timeout, public_offices_only=po)
     elif args.nl:
-        rows = collect_nl(session, args.timeout)
+        if po:
+            print("[osm] Netherlands public offices only", file=sys.stderr)
+        rows = collect_nl(session, args.timeout, public_offices_only=po)
 
     if args.kvk_key and args.kvk_city:
         print(f"[kvk] paid search plaats={args.kvk_city}", file=sys.stderr)
@@ -596,6 +672,14 @@ def main() -> int:
     out = Path(args.out)
     write_csv(out, rows)
     write_sqlite(Path(args.sqlite), rows)
+
+    if po and args.nl and rows:
+        main_total, batch = merge_into_main(rows)
+        print(
+            f"[main] merged {batch} public offices into {MAIN_SQLITE} (total ~{main_total} rows in csv)",
+            file=sys.stderr,
+        )
+
     with_email = sum(1 for r in rows if r.get("general_email"))
     with_web = sum(1 for r in rows if r.get("website"))
     with_phone = sum(1 for r in rows if r.get("phone"))

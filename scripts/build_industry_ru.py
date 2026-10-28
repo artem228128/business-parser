@@ -710,6 +710,12 @@ ID_OVERRIDE: dict[str, str] = {
     "shop:car_repair": "автосервис",
     "amenity:car_wash": "автомойка",
     "office:import-export": "импорт и экспорт",
+    "office:government": "госорган",
+    "office:diplomatic": "диппредставительство",
+    "office:ngo": "НКО",
+    "office:association": "ассоциация",
+    "office:political_party": "политическая партия",
+    "office:religion": "религиозная организация",
 }
 
 
