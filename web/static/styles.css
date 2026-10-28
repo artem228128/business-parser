@@ -383,6 +383,12 @@ body {
     background: var(--panel);
     border-top: 1px solid var(--line);
     box-shadow: 0 -8px 28px rgba(28, 25, 20, 0.08);
+    transform: translateY(var(--sheet-drag-y, 0));
+    transition: transform 0.16s ease-out;
+  }
+  .panel-sheet.is-dragging {
+    transition: none;
+    will-change: transform;
   }
   .panel-split {
     flex: 0 0 auto;

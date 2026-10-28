@@ -271,12 +271,17 @@ function sheetHeightPx() {
   return sheet ? sheet.getBoundingClientRect().height : 0;
 }
 
+function applySheetLayout(h, dragY = 0) {
+  document.documentElement.style.setProperty("--sheet-h", `${h}px`);
+  document.documentElement.style.setProperty("--sheet-drag-y", `${Math.round(dragY)}px`);
+  const split = $("panel-split");
+  if (split) split.setAttribute("aria-valuenow", String(h));
+}
+
 function setSheetHeight(px, persist = true) {
   if (!window.matchMedia("(max-width: 800px)").matches) return;
   const h = Math.round(Math.max(SHEET_MIN, Math.min(sheetMaxPx(), px)));
-  document.documentElement.style.setProperty("--sheet-h", `${h}px`);
-  const split = $("panel-split");
-  if (split) split.setAttribute("aria-valuenow", String(h));
+  applySheetLayout(h, 0);
   if (persist) localStorage.setItem(SHEET_KEY, String(h));
   if (map && document.body.classList.contains("view-map")) {
     requestAnimationFrame(() => map.invalidateSize({ animate: false }));
@@ -316,20 +321,30 @@ function initMobileSheet() {
   mq.addEventListener("change", applyDefault);
   window.addEventListener("resize", () => clampSheetHeight());
 
+  const sheet = () => document.querySelector(".panel-sheet");
+
   split.addEventListener("pointerdown", (e) => {
     if (!mq.matches) return;
     dragging = true;
     startY = e.clientY;
     startH = sheetHeightPx();
+    sheet()?.classList.add("is-dragging");
     split.setPointerCapture(e.pointerId);
   });
   split.addEventListener("pointermove", (e) => {
     if (!dragging) return;
-    setSheetHeight(startH + (e.clientY - startY));
+    const dy = e.clientY - startY;
+    const target = startH - dy;
+    const max = sheetMaxPx();
+    const h = Math.round(Math.max(SHEET_MIN, Math.min(max, target)));
+    const dragY = dy - (startH - h);
+    applySheetLayout(h, dragY);
   });
   const endDrag = (e) => {
     if (!dragging) return;
     dragging = false;
+    sheet()?.classList.remove("is-dragging");
+    setSheetHeight(sheetHeightPx(), true);
     try {
       split.releasePointerCapture(e.pointerId);
     } catch (_) {
@@ -342,10 +357,10 @@ function initMobileSheet() {
   split.addEventListener("keydown", (e) => {
     if (!mq.matches) return;
     const h = sheetHeightPx();
-    if (e.key === "ArrowDown" || e.key === "PageDown") {
+    if (e.key === "ArrowUp" || e.key === "PageUp") {
       e.preventDefault();
       setSheetHeight(h + 28);
-    } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+    } else if (e.key === "ArrowDown" || e.key === "PageDown") {
       e.preventDefault();
       setSheetHeight(h - 28);
     }
