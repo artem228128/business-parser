@@ -60,13 +60,14 @@
           </div>
           <ul id="city-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
-        <label class="combo-field">
+        <label>
           <span data-i18n="sort">Sort</span>
-          <div class="combo-input-wrap">
-            <input id="sort" type="text" autocomplete="off" spellcheck="false" />
-            <button type="button" class="combo-clear hidden" data-clear="sort" data-i18n-aria="clear" aria-label="Clear">×</button>
-          </div>
-          <ul id="sort-suggest" class="suggest hidden" role="listbox"></ul>
+          <select id="sort">
+            <option value="name" data-i18n="sortName">Name A–Z</option>
+            <option value="contacts" data-i18n="sortContacts">Most complete contacts</option>
+            <option value="city" data-i18n="sortCity">City A–Z</option>
+            <option value="industry" data-i18n="sortIndustry">Type A–Z</option>
+          </select>
         </label>
       </div>
 

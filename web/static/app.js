@@ -170,14 +170,7 @@ const KIND_NAME = {
 };
 const CAT_ORDER = ["shop", "office", "public", "food", "health", "stay", "craft", "mobility", "amenity", "other"];
 
-const SORT_OPTS = [
-  { id: "name", labelKey: "sortName" },
-  { id: "contacts", labelKey: "sortContacts" },
-  { id: "city", labelKey: "sortCity" },
-  { id: "industry", labelKey: "sortIndustry" },
-];
-
-const COMBO_LISTS = ["category-suggest", "industry-suggest", "city-suggest", "sort-suggest"];
+const COMBO_LISTS = ["category-suggest", "industry-suggest", "city-suggest"];
 
 const PUBLIC_OFFICE_RU = {
   "office:government": "госорган",
@@ -243,9 +236,9 @@ function hideAllCombos() {
   for (const id of COMBO_LISTS) $(id)?.classList.add("hidden");
 }
 
-function closeComboInput(inputId) {
+function closeComboInput(inputId, suppressMs = 320) {
   hideAllCombos();
-  comboSuppressUntil = Date.now() + 320;
+  comboSuppressUntil = Date.now() + suppressMs;
   const el = $(inputId);
   if (el) el.blur();
 }
@@ -333,22 +326,13 @@ function industryLabel(id) {
   return item ? `${industryName(item.id, item.label)} · ${fmt(item.n)}` : "";
 }
 
-function sortOptions() {
-  return SORT_OPTS.map((o) => ({ id: o.id, label: t(o.labelKey) }));
-}
-
-function sortLabel(id) {
-  const o = SORT_OPTS.find((s) => s.id === id);
-  return o ? t(o.labelKey) : "";
-}
-
 function syncFilterInputs() {
   const cat = $("category");
   if (cat) cat.value = state.category ? categoryLabel(state.category) : "";
   const ind = $("industry");
   if (ind) ind.value = state.industry ? industryLabel(state.industry) : "";
   const srt = $("sort");
-  if (srt) srt.value = sortLabel(state.sort || "name");
+  if (srt) srt.value = state.sort || "name";
   const city = $("city");
   if (city) city.value = state.city || "";
   updateClearButtons();
@@ -359,7 +343,6 @@ function updateClearButtons() {
     category: !!state.category,
     industry: !!state.industry,
     city: !!state.city,
-    sort: !!state.sort && state.sort !== "name",
   };
   for (const [field, on] of Object.entries(show)) {
     const btn = document.querySelector(`.combo-clear[data-clear="${field}"]`);
@@ -371,7 +354,6 @@ function clearComboField(field) {
   if (field === "category") pickCategory("");
   else if (field === "industry") pickIndustry("");
   else if (field === "city") pickCity("");
-  else if (field === "sort") pickSort("name");
 }
 
 function openCategoryCombo() {
@@ -400,19 +382,6 @@ function pickIndustry(id) {
   state.page = 1;
   updateClearButtons();
   refresh({ fit: true });
-}
-
-function openSortCombo() {
-  showComboList("sort-suggest", filterByQuery(sortOptions(), $("sort").value), pickSort);
-}
-
-function pickSort(id) {
-  state.sort = id || "name";
-  $("sort").value = sortLabel(state.sort);
-  closeComboInput("sort");
-  state.page = 1;
-  updateClearButtons();
-  loadList();
 }
 
 function bindCombo(inputId, openFn, pickFromInput) {
@@ -711,11 +680,10 @@ async function boot() {
       else openIndustryCombo();
     }
   });
-  bindCombo("sort", openSortCombo, () => {
-    const q = normCombo($("sort").value);
-    const match = sortOptions().find((o) => normCombo(o.label) === q);
-    if (match) pickSort(match.id);
-    else pickSort(state.sort || "name");
+  $("sort").addEventListener("change", () => {
+    state.sort = $("sort").value || "name";
+    state.page = 1;
+    loadList();
   });
   $("city").addEventListener("input", onCityInput);
   $("city").addEventListener("focus", onCityInput);
@@ -816,6 +784,7 @@ function onQuery() {
 function onCityInput() {
   clearTimeout(cityTimer);
   cityTimer = setTimeout(async () => {
+    if (Date.now() < comboSuppressUntil) return;
     const q = $("city").value.trim();
     if (q.length < 1) {
       if (state.city) {
@@ -844,15 +813,23 @@ function renderCitySuggest(items) {
   box.innerHTML = items
     .map((c) => `<li role="option" data-city="${esc(c.name)}"><span>${esc(c.name)}</span><span class="n">${fmt(c.n)}</span></li>`)
     .join("");
-  bindSuggestPick(box, "li", (name) => pickCity(name));
+  for (const li of box.querySelectorAll("li")) {
+    const name = li.getAttribute("data-city") || "";
+    li.addEventListener("mousedown", (e) => e.preventDefault());
+    li.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pickCity(name);
+    });
+  }
 }
 
 function pickCity(name) {
+  clearTimeout(cityTimer);
   const exact = (name || "").trim();
   if (!exact) {
     state.city = "";
     $("city").value = "";
-    closeComboInput("city");
+    closeComboInput("city", 450);
     state.page = 1;
     updateClearButtons();
     industryCache = { city: null, items: null };
@@ -861,7 +838,7 @@ function pickCity(name) {
   }
   state.city = exact;
   $("city").value = exact;
-  closeComboInput("city");
+  closeComboInput("city", 450);
   state.page = 1;
   updateClearButtons();
   if (industryCache.city !== exact) industryCache = { city: null, items: null };
