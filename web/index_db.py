@@ -60,6 +60,18 @@ def city_from(addr: str) -> str:
     return CITY_ALIAS.get(city.lower(), CITY_ALIAS.get(key, city))
 
 
+STAY_TOURISM = {
+    "hotel",
+    "motel",
+    "guest_house",
+    "hostel",
+    "apartment",
+    "chalet",
+    "camp_site",
+    "caravan_site",
+}
+
+
 def category_of(industry: str) -> str:
     kind, _, val = (industry or "").partition(":")
     if kind == "shop":
@@ -70,8 +82,16 @@ def category_of(industry: str) -> str:
         return "office"
     if kind == "craft":
         return "craft"
+    if kind == "healthcare":
+        return "health"
+    if kind in {"industrial", "man_made", "building"}:
+        return "other"
+    if kind == "leisure":
+        if val in {"fitness_centre", "sports_centre", "spa", "swimming_pool", "ice_rink"}:
+            return "health"
+        return "amenity"
     if kind == "tourism":
-        return "stay"
+        return "stay" if val in STAY_TOURISM else "amenity"
     if kind == "amenity":
         if val in FOOD:
             return "food"

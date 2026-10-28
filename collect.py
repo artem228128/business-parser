@@ -10,6 +10,8 @@ import re
 import sqlite3
 import sys
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,8 +23,14 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parent
 MAIN_SQLITE = ROOT / "data" / "netherlands.sqlite"
 MAIN_CSV = ROOT / "data" / "netherlands.csv"
+NL_COLLECT_STATE = ROOT / "data" / "nl-collect.state"
+NL_PARTS_STATE = ROOT / "data" / "nl-parts.state"
+NL_GEMEENTEN_CACHE = ROOT / "data" / "nl-gemeenten.txt"
+NL_GEMEENTE_STATE = ROOT / "data" / "nl-gemeente.state"
+MERGE_LOCK = threading.Lock()
 
 OVERPASS_ENDPOINTS = [
+    "https://overpass.openstreetmap.fr/api/interpreter",
     "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
@@ -48,74 +56,199 @@ NL_PROVINCES = {
     "NL-ZH": "Zuid-Holland",
 }
 
-BUSINESS_AMENITIES = {
-    "restaurant",
-    "cafe",
-    "fast_food",
-    "bar",
-    "pub",
-    "biergarten",
-    "food_court",
-    "ice_cream",
-    "pharmacy",
-    "bank",
-    "atm",
-    "bureau_de_change",
-    "clinic",
-    "dentist",
-    "doctors",
-    "veterinary",
-    "hospital",
-    "studio",
-    "theatre",
-    "cinema",
-    "nightclub",
-    "casino",
-    "brothel",
-    "stripclub",
-    "gambling",
-    "internet_cafe",
-    "coworking_space",
-    "conference_centre",
-    "events_venue",
-    "marketplace",
-    "fuel",
-    "car_rental",
-    "car_wash",
-    "car_sharing",
-    "charging_station",
-    "taxi",
-    "boat_rental",
-    "bicycle_rental",
-    "bicycle_repair_station",
-    "post_office",
-    "parcel_locker",
-    "money_transfer",
-    "insurance",
-    "lawyer",
-    "notary",
-    "accountant",
-    "estate_agent",
-    "employment_agency",
-    "travel_agency",
-    "copy_shop",
-    "photo_booth",
-    "salon",
-    "hairdresser",
-    "beauty",
-    "spa",
-    "massage",
-    "tattoo",
-    "laundry",
-    "dry_cleaning",
-    "childcare",
-    "kindergarten",
-    "language_school",
-    "driving_school",
-    "music_school",
-    "prep_school",
-    "training",
-}
+# amenity=* with a name but not a commercial POI (schools, infra, worship, …)
+NON_BUSINESS_AMENITIES = frozenset(
+    {
+        "bench",
+        "waste_basket",
+        "waste_disposal",
+        "recycling",
+        "compost",
+        "drinking_water",
+        "fountain",
+        "parking",
+        "parking_space",
+        "parking_entrance",
+        "bicycle_parking",
+        "motorcycle_parking",
+        "parking_meter",
+        "toilets",
+        "shower",
+        "shelter",
+        "clock",
+        "post_box",
+        "letter_box",
+        "give_box",
+        "vending_machine",
+        "telephone",
+        "emergency_phone",
+        "fire_station",
+        "police",
+        "ambulance_station",
+        "ranger_station",
+        "townhall",
+        "courthouse",
+        "prison",
+        "social_facility",
+        "community_centre",
+        "place_of_worship",
+        "monastery",
+        "grave_yard",
+        "mortuary",
+        "school",
+        "university",
+        "college",
+        "library",
+        "public_bookcase",
+        "public_building",
+        "hunting_stand",
+        "loading_dock",
+        "vehicle_inspection",
+        "bbq",
+        "trolley_bay",
+        "bus_station",
+        "ferry_terminal",
+    }
+)
+
+# Overpass filter for amenity=* (faster than nwr["amenity"]["name"] on whole provinces).
+COMMERCIAL_AMENITIES = frozenset(
+    {
+        "accountant",
+        "animal_boarding",
+        "animal_breeding",
+        "animal_shelter",
+        "animal_training",
+        "architect",
+        "art_gallery",
+        "arts_centre",
+        "atm",
+        "bank",
+        "bar",
+        "bbq",
+        "biergarten",
+        "bicycle_repair_station",
+        "bicycle_rental",
+        "boat_rental",
+        "brothel",
+        "bureau_de_change",
+        "cafe",
+        "car_rental",
+        "car_sharing",
+        "car_wash",
+        "casino",
+        "charging_station",
+        "childcare",
+        "cinema",
+        "clinic",
+        "clock",
+        "conference_centre",
+        "copy_shop",
+        "coworking_space",
+        "dentist",
+        "doctors",
+        "driving_school",
+        "dry_cleaning",
+        "employment_agency",
+        "estate_agent",
+        "events_venue",
+        "fast_food",
+        "food_court",
+        "fuel",
+        "gambling",
+        "hairdresser",
+        "hospital",
+        "ice_cream",
+        "insurance",
+        "internet_cafe",
+        "kindergarten",
+        "language_school",
+        "lawyer",
+        "laundry",
+        "marketplace",
+        "massage",
+        "money_transfer",
+        "music_school",
+        "music_venue",
+        "nightclub",
+        "notary",
+        "parcel_locker",
+        "pharmacy",
+        "photo_booth",
+        "prep_school",
+        "pub",
+        "restaurant",
+        "salon",
+        "spa",
+        "stripclub",
+        "studio",
+        "tattoo",
+        "taxi",
+        "theatre",
+        "training",
+        "travel_agency",
+        "veterinary",
+        "beauty",
+    }
+) - NON_BUSINESS_AMENITIES
+
+AMENITY_OVERPASS = "|".join(sorted(COMMERCIAL_AMENITIES))
+
+NON_BUSINESS_TOURISM = frozenset(
+    {
+        "viewpoint",
+        "picnic_site",
+        "information",
+        "camp_pitch",
+        "wilderness_hut",
+        "artwork",
+        "yes",
+    }
+)
+
+BUSINESS_BUILDINGS = frozenset(
+    {
+        "commercial",
+        "retail",
+        "industrial",
+        "warehouse",
+        "office",
+        "service",
+        "kiosk",
+        "garage",
+        "depot",
+        "manufacture",
+        "farm",
+        "supermarket",
+        "bakehouse",
+        "greenhouse",
+    }
+)
+
+BUSINESS_LEISURE = frozenset(
+    {
+        "fitness_centre",
+        "sports_centre",
+        "bowling_alley",
+        "adult_gaming_centre",
+        "dance",
+        "spa",
+        "water_park",
+        "marina",
+        "stadium",
+        "horse_riding",
+        "miniature_golf",
+        "trampoline_park",
+        "amusement_arcade",
+        "escape_game",
+        "disc_golf_course",
+        "ice_rink",
+        "swimming_pool",
+    }
+)
+
+BUILDING_OVERPASS = "|".join(sorted(BUSINESS_BUILDINGS))
+LEISURE_OVERPASS = "|".join(sorted(BUSINESS_LEISURE))
 
 # OSM office=* — separate collect via --public-offices; excluded from default --nl/--city
 PUBLIC_OFFICE_TYPES = frozenset(
@@ -178,7 +311,19 @@ def tag(el: dict, *keys: str) -> str:
 
 def industry_of(el: dict) -> str:
     tags = el.get("tags") or {}
-    for key in ("office", "shop", "craft", "tourism", "amenity", "healthcare"):
+    for key in (
+        "office",
+        "shop",
+        "craft",
+        "healthcare",
+        "industrial",
+        "man_made",
+        "building",
+        "leisure",
+        "tourism",
+        "amenity",
+        "company",
+    ):
         val = tags.get(key)
         if val:
             return f"{key}:{val}"
@@ -225,16 +370,25 @@ def is_business(el: dict, *, public_offices_only: bool = False) -> bool:
     office = tags.get("office")
     if public_offices_only:
         return office in PUBLIC_OFFICE_TYPES
-    if tags.get("shop") or tags.get("craft"):
+    if tags.get("shop") or tags.get("craft") or tags.get("company"):
+        return True
+    if tags.get("healthcare") or tags.get("industrial"):
+        return True
+    if tags.get("man_made") == "works":
+        return True
+    building = tags.get("building")
+    if building in BUSINESS_BUILDINGS:
+        return True
+    leisure = tags.get("leisure")
+    if leisure in BUSINESS_LEISURE:
         return True
     if office and office not in PUBLIC_OFFICE_TYPES:
         return True
-    if tags.get("tourism") in {"hotel", "motel", "guest_house", "hostel", "apartment", "chalet"}:
+    tourism = tags.get("tourism")
+    if tourism and tourism not in NON_BUSINESS_TOURISM:
         return True
     amenity = tags.get("amenity")
-    if amenity in BUSINESS_AMENITIES:
-        return True
-    if tags.get("company"):
+    if amenity and amenity not in NON_BUSINESS_AMENITIES:
         return True
     return False
 
@@ -263,16 +417,38 @@ def to_record(el: dict, verified: str) -> dict[str, str]:
     }
 
 
-def overpass_query(area_filter: str, timeout: int, *, public_offices_only: bool = False) -> str:
-    if public_offices_only:
+def overpass_query(
+    area_filter: str,
+    timeout: int,
+    *,
+    public_offices_only: bool = False,
+    factories_only: bool = False,
+) -> str:
+    """Same single query per province as the first full NL run, plus the extra POI types."""
+    if factories_only:
+        # Bbox of the Netherlands. Area lookup was the part that failed on the mirror that answers.
+        return f"""
+[out:json][timeout:{timeout}];
+(
+  nwr["man_made"="works"]["name"](50.75,3.20,53.70,7.23);
+  nwr["industrial"="factory"]["name"](50.75,3.20,53.70,7.23);
+);
+out center tags;
+""".strip()
+    elif public_offices_only:
         body = f'  nwr["office"~"{PUBLIC_OFFICE_OVERPASS}"]["name"](area.a);'
     else:
-        body = """
+        body = f"""
   nwr["shop"]["name"](area.a);
   nwr["office"]["name"](area.a);
   nwr["craft"]["name"](area.a);
   nwr["company"]["name"](area.a);
-  nwr["tourism"~"hotel|motel|guest_house|hostel"]["name"](area.a);
+  nwr["healthcare"]["name"](area.a);
+  nwr["industrial"]["name"](area.a);
+  nwr["man_made"="works"]["name"](area.a);
+  nwr["building"~"{BUILDING_OVERPASS}"]["name"](area.a);
+  nwr["leisure"~"{LEISURE_OVERPASS}"]["name"](area.a);
+  nwr["tourism"~"hotel|motel|guest_house|hostel|apartment|chalet|camp_site|caravan_site"]["name"](area.a);
   nwr["amenity"~"restaurant|cafe|fast_food|bar|pub|pharmacy|bank|clinic|dentist|doctors|veterinary|studio|theatre|cinema|nightclub|fuel|car_rental|car_wash|post_office|hairdresser|marketplace"]["name"](area.a);
 """.strip()
     return f"""
@@ -285,23 +461,47 @@ out center tags;
 """.strip()
 
 
-def fetch_overpass(query: str, session: requests.Session) -> list[dict]:
+def fetch_overpass(query: str, session: requests.Session | None = None, *, timeout: int = 180) -> list[dict]:
     last_err = None
+    own = session is None
+    if own:
+        session = requests.Session()
+        session.headers["User-Agent"] = USER_AGENT
     for url in OVERPASS_ENDPOINTS:
+        host = url.split("/")[2]
         for attempt in range(4):
+            print(f"[osm] {host} attempt {attempt + 1}", file=sys.stderr, flush=True)
             try:
-                r = session.post(url, data={"data": query}, timeout=300)
+                r = session.post(url, data={"data": query}, timeout=timeout + 30)
                 if r.status_code in {429, 504, 502, 503}:
-                    time.sleep(20 * (attempt + 1))
+                    time.sleep(15 * (attempt + 1))
                     continue
                 r.raise_for_status()
                 payload = r.json()
+                remark = str(payload.get("remark") or "")
+                low = remark.lower()
+                if "timed out" in low or "runtime error" in low:
+                    raise RuntimeError(remark[:240] or "Overpass timed out")
                 return payload.get("elements") or []
             except Exception as exc:  # noqa: BLE001
                 last_err = exc
-                time.sleep(8 * (attempt + 1))
-        time.sleep(3)
+                print(f"[osm] {host} failed: {exc}", file=sys.stderr, flush=True)
+                time.sleep(6 * (attempt + 1))
+        time.sleep(2)
     raise RuntimeError(f"Overpass failed: {last_err}")
+
+
+def _fetch_overpass_part(query: str, label: str) -> tuple[str, list[dict], float]:
+    t0 = time.monotonic()
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            batch = fetch_overpass(query, session=None)
+            return label, batch, time.monotonic() - t0
+        except RuntimeError as exc:
+            last_err = exc
+            time.sleep(8 * (attempt + 1))
+    raise last_err or RuntimeError("Overpass failed")
 
 
 def collect_area(
@@ -310,11 +510,18 @@ def collect_area(
     timeout: int,
     *,
     public_offices_only: bool = False,
+    factories_only: bool = False,
 ) -> list[dict]:
     verified = date.today().isoformat()
     elements = fetch_overpass(
-        overpass_query(area_ql, timeout, public_offices_only=public_offices_only),
+        overpass_query(
+            area_ql,
+            timeout,
+            public_offices_only=public_offices_only,
+            factories_only=factories_only,
+        ),
         session,
+        timeout=timeout,
     )
     rows = []
     seen: set[tuple[str, str]] = set()
@@ -341,13 +548,232 @@ def collect_city(
     return collect_area(session, ql, timeout, public_offices_only=public_offices_only)
 
 
-def collect_nl(session: requests.Session, timeout: int, *, public_offices_only: bool = False) -> list[dict]:
+def _province_start_index(resume: bool, start_after: str) -> int:
+    items = list(NL_PROVINCES.items())
+    if start_after:
+        for i, (iso, _) in enumerate(items):
+            if iso == start_after:
+                return i + 1
+        print(f"[osm] unknown --after {start_after}, from start", file=sys.stderr)
+        return 0
+    if not resume or not NL_COLLECT_STATE.exists():
+        return 0
+    last = NL_COLLECT_STATE.read_text(encoding="utf-8").strip()
+    for i, (iso, _) in enumerate(items):
+        if iso == last:
+            print(f"[osm] resume after {last}", file=sys.stderr)
+            return i + 1
+    return 0
+
+
+def area_ql_gemeente(name: str) -> str:
+    safe = name.replace("\\", "\\\\").replace('"', '\\"')
+    return f'area["name"="{safe}"]["admin_level"="8"]->.a;'
+
+
+def fetch_nl_gemeenten(session: requests.Session, timeout: int) -> list[str]:
+    if NL_GEMEENTEN_CACHE.exists():
+        names = [ln.strip() for ln in NL_GEMEENTEN_CACHE.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        if names:
+            return names
+    names: set[str] = set()
+    tlim = min(timeout, 90)
+    for iso, pname in NL_PROVINCES.items():
+        print(f"[osm] gemeenten list: {pname}", file=sys.stderr)
+        q = f"""
+[out:json][timeout:{tlim}];
+area["ISO3166-2"="{iso}"]->.p;
+rel(area.p)["admin_level"="8"]["boundary"="administrative"];
+out tags;
+""".strip()
+        for el in fetch_overpass(q, session):
+            n = (el.get("tags") or {}).get("name")
+            if n:
+                names.add(n)
+        time.sleep(1)
+    if not names:
+        raise RuntimeError("Could not load NL gemeenten list from Overpass")
+    out = sorted(names)
+    NL_GEMEENTEN_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    NL_GEMEENTEN_CACHE.write_text("\n".join(out) + "\n", encoding="utf-8")
+    print(f"[osm] {len(out)} gemeenten (cached {NL_GEMEENTEN_CACHE.name})", file=sys.stderr)
+    return out
+
+
+def _gemeente_done() -> set[str]:
+    if not NL_GEMEENTE_STATE.exists():
+        return set()
+    return {ln.strip() for ln in NL_GEMEENTE_STATE.read_text(encoding="utf-8").splitlines() if ln.strip()}
+
+
+def collect_nl_gemeente(
+    session: requests.Session,
+    timeout: int,
+    *,
+    public_offices_only: bool = False,
+    merge_main: bool = False,
+    resume: bool = False,
+    wide_amenity: bool = False,
+    parallel_parts: bool = True,
+    workers: int = 6,
+) -> list[dict]:
+    cities = fetch_nl_gemeenten(session, timeout)
+    done = _gemeente_done() if resume else set()
+    todo = [c for c in cities if c not in done]
+    w = max(1, min(workers, 12))
+    est = len(todo) * 35 / w
+    print(
+        f"[plan] {len(todo)}/{len(cities)} gemeenten, {w} workers, "
+        f"rough ETA ~{fmt_eta(est)} (Overpass load varies)",
+        file=sys.stderr,
+    )
     all_rows: list[dict] = []
-    for iso, name in NL_PROVINCES.items():
+    times: list[float] = []
+    done_n = len(done)
+    progress_lock = threading.Lock()
+
+    def one_city(city: str) -> tuple[str, list[dict], float]:
+        t0 = time.monotonic()
+        _ = wide_amenity, parallel_parts
+        rows = collect_area(
+            session,
+            area_ql_gemeente(city),
+            timeout,
+            public_offices_only=public_offices_only,
+        )
+        return city, rows, time.monotonic() - t0
+
+    with ThreadPoolExecutor(max_workers=w) as pool:
+        futs = {pool.submit(one_city, city): city for city in todo}
+        for fut in as_completed(futs):
+            city, rows, elapsed = fut.result()
+            with progress_lock:
+                done_n += 1
+                times.append(elapsed)
+                avg = sum(times) / len(times)
+                left = len(cities) - done_n
+                eta = (left * avg) / w
+                print(
+                    f"[osm] {done_n}/{len(cities)} {city}: {len(rows)} rows ({elapsed:.0f}s) "
+                    f"ETA ~{fmt_eta(eta)}",
+                    file=sys.stderr,
+                )
+                if merge_main and rows:
+                    main_total, _ = merge_into_main(rows)
+                    print(f"[main] ~{main_total} rows in csv", file=sys.stderr)
+                    with NL_GEMEENTE_STATE.open("a", encoding="utf-8") as sf:
+                        sf.write(city + "\n")
+            all_rows.extend(rows)
+    return all_rows
+
+
+def _done_parts() -> set[tuple[str, str]]:
+    if not NL_PARTS_STATE.exists():
+        return set()
+    done: set[tuple[str, str]] = set()
+    for line in NL_PARTS_STATE.read_text(encoding="utf-8").splitlines():
+        iso, _, part = line.strip().partition("\t")
+        if iso and part:
+            done.add((iso, part))
+    return done
+
+
+def _mark_part_done(iso: str, part: str) -> None:
+    NL_PARTS_STATE.parent.mkdir(parents=True, exist_ok=True)
+    with NL_PARTS_STATE.open("a", encoding="utf-8") as f:
+        f.write(f"{iso}\t{part}\n")
+
+
+NL_BBOX = "50.75,3.20,53.70,7.23"
+
+
+def extra_selectors() -> list[tuple[str, str]]:
+    stay = "hotel|motel|guest_house|hostel|apartment|chalet|camp_site|caravan_site"
+    return [
+        ("healthcare", f'nwr["healthcare"]["name"]({NL_BBOX});'),
+        ("industrial", f'nwr["industrial"]["name"]({NL_BBOX});'),
+        ("building", f'nwr["building"~"{BUILDING_OVERPASS}"]["name"]({NL_BBOX});'),
+        ("leisure-sport", f'nwr["leisure"~"fitness_centre|sports_centre|swimming_pool|ice_rink"]["name"]({NL_BBOX});'),
+        ("leisure-stay", f'nwr["leisure"~"spa|water_park|marina|stadium|horse_riding"]["name"]({NL_BBOX});'),
+        ("leisure-play", f'nwr["leisure"~"bowling_alley|adult_gaming_centre|dance|miniature_golf|trampoline_park|amusement_arcade|escape_game|disc_golf_course"]["name"]({NL_BBOX});'),
+        ("tourism", f'nwr["tourism"~"{stay}"]["name"]({NL_BBOX});'),
+    ]
+
+
+def collect_extra(session: requests.Session, timeout: int, *, merge_main: bool = False) -> list[dict]:
+    """Named healthcare, industry, commercial buildings, leisure and stays. One bbox query each."""
+    verified = date.today().isoformat()
+    all_rows: list[dict] = []
+    failed: list[str] = []
+    for name, selector in extra_selectors():
+        query = f"[out:json][timeout:{timeout}];\n(\n  {selector}\n);\nout center tags;"
+        print(f"[osm] extra {name}", file=sys.stderr)
+        try:
+            elements = fetch_overpass(query, session, timeout=timeout)
+        except RuntimeError as exc:
+            print(f"[osm] {name} failed: {exc}", file=sys.stderr)
+            failed.append(name)
+            continue
+        rows: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for el in elements:
+            if not is_business(el):
+                continue
+            rec = to_record(el, verified)
+            key = (rec["company_name"].lower(), rec["business_address"].lower() or rec["source_url"])
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(rec)
+        print(f"[osm] {name}: {len(elements)} elements → {len(rows)} rows", file=sys.stderr)
+        if merge_main and rows:
+            main_total, _ = merge_into_main(rows)
+            print(f"[main] ~{main_total} csv rows", file=sys.stderr)
+        all_rows.extend(rows)
+    if failed:
+        raise RuntimeError("failed types: " + ", ".join(failed))
+    return all_rows
+
+
+def collect_nl(
+    session: requests.Session,
+    timeout: int,
+    *,
+    public_offices_only: bool = False,
+    factories_only: bool = False,
+    merge_main: bool = False,
+    resume: bool = False,
+    start_after: str = "",
+) -> list[dict]:
+    if factories_only:
+        print("[osm] Netherlands factories only (man_made=works, industrial=factory)", file=sys.stderr)
+        rows = collect_area(
+            session,
+            'area["ISO3166-1"="NL"]["admin_level"="2"]->.a;',
+            timeout,
+            factories_only=True,
+        )
+        print(f"[osm] factories: {len(rows)}", file=sys.stderr)
+        if not rows:
+            raise RuntimeError("factory query returned 0 rows")
+        if merge_main:
+            main_total, _ = merge_into_main(rows)
+            print(f"[main] upserted {len(rows)} factories (~{main_total} csv rows)", file=sys.stderr)
+        return rows
+    all_rows: list[dict] = []
+    provinces = list(NL_PROVINCES.items())
+    start = _province_start_index(resume, start_after)
+    for iso, name in provinces[start:]:
         print(f"[osm] {name} ({iso})", file=sys.stderr)
         ql = f'area["ISO3166-2"="{iso}"]->.a;'
         rows = collect_area(session, ql, timeout, public_offices_only=public_offices_only)
         print(f"[osm] {name}: {len(rows)}", file=sys.stderr)
+        if len(rows) == 0 and not public_offices_only:
+            raise RuntimeError(f"{name} returned 0 rows (Overpass timeout or empty), not merging")
+        if merge_main and rows:
+            main_total, _ = merge_into_main(rows)
+            print(f"[main] upserted {len(rows)} from {name} (~{main_total} csv rows)", file=sys.stderr)
+            NL_COLLECT_STATE.write_text(iso, encoding="utf-8")
         all_rows.extend(rows)
         time.sleep(8)
     return all_rows
@@ -531,12 +957,24 @@ def merge_csv(path: Path, rows: list[dict]) -> int:
     return len(by_url)
 
 
+def fmt_eta(seconds: float) -> str:
+    s = max(0, int(seconds))
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}ч {m}м"
+    if m:
+        return f"{m}м {sec}с"
+    return f"{sec}с"
+
+
 def merge_into_main(rows: list[dict]) -> tuple[int, int]:
     """Upsert into data/netherlands.sqlite and .csv. Returns (sqlite_total, batch_size)."""
     if not rows:
         return 0, 0
-    write_sqlite(MAIN_SQLITE, rows)
-    total = merge_csv(MAIN_CSV, rows)
+    with MERGE_LOCK:
+        write_sqlite(MAIN_SQLITE, rows)
+        total = merge_csv(MAIN_CSV, rows)
     return total, len(rows)
 
 
@@ -544,7 +982,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Collect NL businesses from OSM (open). Optional paid KVK / Google Places.")
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--city", help="Dutch municipality name as in OSM, e.g. Amsterdam, Haarlem")
-    g.add_argument("--nl", action="store_true", help="All 12 provinces via OSM (large, slow, incomplete vs KVK)")
+    g.add_argument("--nl", action="store_true", help="All 12 provinces, one Overpass query each")
     g.add_argument("--kvk-open", metavar="KVKNR", help="Probe official KVK open dataset for one number (no names)")
     p.add_argument("--out", default="data/businesses.csv")
     p.add_argument("--sqlite", default="data/businesses.sqlite")
@@ -560,6 +998,48 @@ def parse_args() -> argparse.Namespace:
         "--public-offices",
         action="store_true",
         help="Only OSM office=government|diplomatic|ngo|association|political_party|religion (with --city or --nl)",
+    )
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue after data/nl-gemeente.state or nl-collect.state",
+    )
+    p.add_argument(
+        "--after",
+        metavar="ISO",
+        help="With --nl: skip provinces until after this ISO3166-2 code (e.g. NL-GE)",
+    )
+    p.add_argument(
+        "--wide-amenity",
+        action="store_true",
+        help="Extra slow Overpass pass: all amenity=* with name (provinces only if needed)",
+    )
+    p.add_argument(
+        "--sequential-overpass",
+        action="store_true",
+        help="Run Overpass sub-queries one by one (easier on weak networks)",
+    )
+    p.add_argument(
+        "--factories",
+        action="store_true",
+        help="With --nl: only named factories (man_made=works and industrial=factory)",
+    )
+    p.add_argument(
+        "--extra",
+        action="store_true",
+        help="With --nl: healthcare, industrial, commercial buildings, leisure and stays",
+    )
+    p.add_argument(
+        "--gemeenten",
+        action="store_true",
+        help="Slower: one query per municipality (~350) instead of 12 provinces",
+    )
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=6,
+        metavar="N",
+        help="Parallel gemeenten for --nl (default 6; try 3 if rate-limited)",
     )
     return p.parse_args()
 
@@ -584,6 +1064,7 @@ def main() -> int:
         return 2
 
     po = args.public_offices
+    parallel = not args.sequential_overpass
     rows: list[dict] = []
     if args.city:
         label = "public offices" if po else "city"
@@ -592,7 +1073,29 @@ def main() -> int:
     elif args.nl:
         if po:
             print("[osm] Netherlands public offices only", file=sys.stderr)
-        rows = collect_nl(session, args.timeout, public_offices_only=po)
+        if args.extra:
+            rows = collect_extra(session, args.timeout, merge_main=True)
+        elif args.gemeenten:
+            rows = collect_nl_gemeente(
+                session,
+                args.timeout,
+                public_offices_only=po,
+                merge_main=True,
+                resume=args.resume,
+                wide_amenity=args.wide_amenity,
+                parallel_parts=parallel,
+                workers=args.workers,
+            )
+        else:
+            rows = collect_nl(
+                session,
+                args.timeout,
+                public_offices_only=po,
+                factories_only=args.factories,
+                merge_main=True,
+                resume=args.resume,
+                start_after=(args.after or "").strip().upper(),
+            )
 
     if args.kvk_key and args.kvk_city:
         print(f"[kvk] paid search plaats={args.kvk_city}", file=sys.stderr)
@@ -672,13 +1175,6 @@ def main() -> int:
     out = Path(args.out)
     write_csv(out, rows)
     write_sqlite(Path(args.sqlite), rows)
-
-    if po and args.nl and rows:
-        main_total, batch = merge_into_main(rows)
-        print(
-            f"[main] merged {batch} public offices into {MAIN_SQLITE} (total ~{main_total} rows in csv)",
-            file=sys.stderr,
-        )
 
     with_email = sum(1 for r in rows if r.get("general_email"))
     with_web = sum(1 for r in rows if r.get("website"))
