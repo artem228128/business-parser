@@ -29,88 +29,7 @@ const CAT_COLORS = {
 const NL_BOUNDS = [[50.75, 3.2], [53.7, 7.3]];
 const $ = (id) => document.getElementById(id);
 
-const INDUSTRY_RU = {
-  "amenity:restaurant": "ресторан",
-  "office:company": "компания",
-  "shop:clothes": "одежда",
-  "amenity:fast_food": "фастфуд",
-  "shop:hairdresser": "парикмахерская",
-  "amenity:cafe": "кафе",
-  "shop:supermarket": "супермаркет",
-  "amenity:fuel": "АЗС",
-  "amenity:pub": "паб",
-  "shop:bakery": "пекарня",
-  "shop:car_repair": "автосервис",
-  "shop:bicycle": "велосипеды",
-  "shop:car": "автомобили",
-  "tourism:hotel": "отель",
-  "amenity:doctors": "врачи",
-  "amenity:dentist": "стоматолог",
-  "shop:chemist": "бытовая химия",
-  "shop:beauty": "красота",
-  "shop:convenience": "минимаркет",
-  "tourism:guest_house": "гостевой дом",
-  "shop:optician": "оптика",
-  "shop:furniture": "мебель",
-  "shop:florist": "цветы",
-  "shop:shoes": "обувь",
-  "amenity:pharmacy": "аптека",
-  "shop:butcher": "мясная",
-  "shop:jewelry": "ювелирные",
-  "amenity:bar": "бар",
-  "office:yes": "офис",
-  "office:estate_agent": "недвижимость",
-  "shop:gift": "подарки",
-  "shop:alcohol": "алкоголь",
-  "shop:books": "книги",
-  "shop:doityourself": "стройтовары",
-  "shop:interior_decoration": "интерьер",
-  "shop:second_hand": "секонд-хенд",
-  "amenity:car_wash": "автомойка",
-  "shop:garden_centre": "садовый центр",
-  "shop:pet": "зоотовары",
-  "shop:variety_store": "товары для дома",
-  "shop:electronics": "электроника",
-  "shop:mobile_phone": "телефоны",
-  "amenity:veterinary": "ветеринар",
-  "shop:newsagent": "пресса",
-  "amenity:theatre": "театр",
-  "shop:sports": "спорттовары",
-  "shop:kitchen": "кухни",
-  "office:it": "IT",
-  "shop:department_store": "универмаг",
-  "shop:trade": "торговля",
-  "shop:seafood": "морепродукты",
-  "office:employment_agency": "кадры",
-  "amenity:clinic": "клиника",
-  "shop:cheese": "сыр",
-  "shop:toys": "игрушки",
-  "shop:houseware": "товары для дома",
-  "shop:greengrocer": "овощи и фрукты",
-  "shop:farm": "ферма",
-  "office:educational_institution": "образование",
-  "amenity:bank": "банк",
-  "shop:bed": "кровати",
-  "shop:massage": "массаж",
-  "shop:wholesale": "опт",
-  "shop:deli": "деликатесы",
-  "office:lawyer": "юрист",
-  "shop:pastry": "кондитерская",
-  "shop:hardware": "скобяные товары",
-  "shop:tattoo": "тату",
-  "shop:travel_agency": "турагентство",
-  "shop:yes": "магазин",
-  "shop:cannabis": "каннабис",
-  "amenity:car_rental": "прокат авто",
-  "shop:tailor": "ателье",
-  "shop:computer": "компьютеры",
-  "shop:art": "искусство",
-  "shop:hearing_aids": "слуховые аппараты",
-  "shop:perfumery": "парфюмерия",
-  "shop:car_parts": "автозапчасти",
-  "shop:telecommunication": "связь",
-  "shop:tobacco": "табак",
-};
+let industryRu = {};
 
 const I18N = {
   en: {
@@ -260,7 +179,8 @@ function industryName(id, label) {
   }
   if (id === "office:it") return "IT";
   if (id === "shop:hifi") return "Hi-Fi";
-  const name = lang === "ru" && INDUSTRY_RU[id] ? INDUSTRY_RU[id] : label || "";
+  const name =
+    lang === "ru" && industryRu[id] ? industryRu[id] : label || "";
   return titleCase(name);
 }
 
@@ -334,6 +254,101 @@ function setView(view) {
   requestAnimationFrame(() => {
     map.invalidateSize({ animate: false });
     if (cold) map.fitBounds(NL_BOUNDS, { padding: [20, 20], maxZoom: 8, animate: false });
+  });
+  clampSheetHeight();
+}
+
+const SHEET_KEY = "hk-sheet-h";
+const SHEET_MIN = 132;
+
+function sheetMaxPx() {
+  const margin = document.body.classList.contains("view-map") ? 108 : 76;
+  return Math.max(SHEET_MIN, window.innerHeight * 0.88 - margin);
+}
+
+function sheetHeightPx() {
+  const sheet = document.querySelector(".panel-sheet");
+  return sheet ? sheet.getBoundingClientRect().height : 0;
+}
+
+function setSheetHeight(px, persist = true) {
+  if (!window.matchMedia("(max-width: 800px)").matches) return;
+  const h = Math.round(Math.max(SHEET_MIN, Math.min(sheetMaxPx(), px)));
+  document.documentElement.style.setProperty("--sheet-h", `${h}px`);
+  const split = $("panel-split");
+  if (split) split.setAttribute("aria-valuenow", String(h));
+  if (persist) localStorage.setItem(SHEET_KEY, String(h));
+  if (map && document.body.classList.contains("view-map")) {
+    requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+  }
+}
+
+function clampSheetHeight() {
+  const h = sheetHeightPx();
+  if (h) setSheetHeight(h, false);
+}
+
+function initMobileSheet() {
+  const split = $("panel-split");
+  if (!split) return;
+  const mq = window.matchMedia("(max-width: 800px)");
+  let dragging = false;
+  let startY = 0;
+  let startH = 0;
+
+  const applyDefault = () => {
+    if (!mq.matches) {
+      document.documentElement.style.removeProperty("--sheet-h");
+      return;
+    }
+    const stored = localStorage.getItem(SHEET_KEY);
+    if (stored) {
+      setSheetHeight(+stored, false);
+      return;
+    }
+    const def = document.body.classList.contains("view-map")
+      ? window.innerHeight * 0.34
+      : window.innerHeight * 0.42;
+    setSheetHeight(def, false);
+  };
+
+  applyDefault();
+  mq.addEventListener("change", applyDefault);
+  window.addEventListener("resize", () => clampSheetHeight());
+
+  split.addEventListener("pointerdown", (e) => {
+    if (!mq.matches) return;
+    dragging = true;
+    startY = e.clientY;
+    startH = sheetHeightPx();
+    split.setPointerCapture(e.pointerId);
+  });
+  split.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    setSheetHeight(startH + (e.clientY - startY));
+  });
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    try {
+      split.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  split.addEventListener("pointerup", endDrag);
+  split.addEventListener("pointercancel", endDrag);
+
+  split.addEventListener("keydown", (e) => {
+    if (!mq.matches) return;
+    const h = sheetHeightPx();
+    if (e.key === "ArrowDown" || e.key === "PageDown") {
+      e.preventDefault();
+      setSheetHeight(h + 28);
+    } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+      e.preventDefault();
+      setSheetHeight(h - 28);
+    }
   });
 }
 
@@ -422,7 +437,14 @@ function initMap() {
 
 async function boot() {
   initMap();
-  statsCache = await (await fetch("/api/stats")).json();
+  const [stats, ru] = await Promise.all([
+    fetch("/api/stats").then((r) => r.json()),
+    fetch("/industry-ru.json")
+      .then((r) => r.json())
+      .catch(() => ({})),
+  ]);
+  industryRu = ru;
+  statsCache = stats;
   applyChrome();
   await loadIndustries();
   document.querySelector(".lang").addEventListener("click", (e) => {
@@ -484,9 +506,6 @@ async function boot() {
       loadList();
     }
   };
-  $("export").onclick = () => {
-    location.href = `/api/export?${qs().toString()}`;
-  };
   document.addEventListener("keydown", (e) => {
     if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "SELECT") {
       e.preventDefault();
@@ -494,6 +513,8 @@ async function boot() {
     }
     if (e.key === "Escape") $("detail").classList.add("hidden");
   });
+
+  initMobileSheet();
 
   countMode = "companies";
   paintCount();

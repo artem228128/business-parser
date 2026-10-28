@@ -15,6 +15,7 @@
 <body>
   <div class="shell">
     <aside class="panel">
+      <div class="panel-filters">
       <header class="brand">
         <div class="brand-row">
           <div>
@@ -70,14 +71,29 @@
       <div class="meta-row">
         <p id="count" data-i18n="loading">Loading atlas…</p>
         <button type="button" id="reset" class="ghost" data-i18n="reset">Reset</button>
-        <button type="button" id="export" class="ghost">CSV</button>
+      </div>
       </div>
 
-      <div id="results" class="results"></div>
-      <div class="pager">
-        <button type="button" id="prev" data-i18n="prev" disabled>Prev</button>
-        <span id="page"></span>
-        <button type="button" id="next" data-i18n="next" disabled>Next</button>
+      <div class="panel-sheet">
+        <div
+          class="panel-split"
+          id="panel-split"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-valuemin="120"
+          aria-valuemax="600"
+          tabindex="0"
+        >
+          <span class="panel-split-bar" aria-hidden="true"></span>
+        </div>
+        <div class="panel-results">
+          <div id="results" class="results"></div>
+          <div class="pager">
+            <button type="button" id="prev" data-i18n="prev" disabled>Prev</button>
+            <span id="page"></span>
+            <button type="button" id="next" data-i18n="next" disabled>Next</button>
+          </div>
+        </div>
       </div>
     </aside>
 

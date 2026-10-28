@@ -363,7 +363,89 @@ body {
     height: 100%;
   }
   body:not(.view-map) .mapwrap { display: none; }
-  body.view-map .panel { display: none; }
+
+  .panel {
+    padding-bottom: 0;
+  }
+  .panel-filters {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 4px;
+  }
+  .panel-sheet {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: var(--sheet-h, 42vh);
+    max-height: 88vh;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 28px rgba(28, 25, 20, 0.08);
+  }
+  .panel-split {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    touch-action: none;
+    cursor: ns-resize;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .panel-split:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .panel-split-bar {
+    width: 44px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--line);
+  }
+  .panel-results {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 14px 8px;
+  }
+  .panel-results .results {
+    flex: 1;
+    min-height: 0;
+  }
+
+  body.view-map .panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(52px + env(safe-area-inset-bottom));
+    z-index: 650;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    pointer-events: none;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    height: auto;
+    max-height: none;
+  }
+  body.view-map .panel-filters {
+    display: none;
+  }
+  body.view-map .panel-sheet {
+    pointer-events: auto;
+    border-radius: 16px 16px 0 0;
+    height: var(--sheet-h, 34vh);
+    max-height: calc(100dvh - 120px);
+  }
+  body.view-map .panel-results {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
 
   .viewbar {
     grid-row: 2;
@@ -423,4 +505,17 @@ body {
     max-width: 62%;
     font-size: 10px;
   }
+}
+
+@media (min-width: 801px) {
+  .panel-split { display: none; }
+  .panel-sheet {
+    flex: 1;
+    min-height: 0;
+    height: auto !important;
+    max-height: none;
+    border-top: 0;
+    box-shadow: none;
+  }
+  .panel-results { padding: 0; }
 }
