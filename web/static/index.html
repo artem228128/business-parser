@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Handelskaart — Dutch businesses</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Handelskaart</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,480;9..144,640&family=Outfit:wght@360;500;640&display=swap" rel="stylesheet" />
@@ -16,64 +16,68 @@
   <div class="shell">
     <aside class="panel">
       <header class="brand">
-        <p class="kicker">Open register · OSM</p>
-        <h1>Handelskaart</h1>
+        <div class="brand-row">
+          <div>
+            <p class="kicker" data-i18n="kicker">Open register · OSM</p>
+            <h1>Handelskaart</h1>
+          </div>
+          <div class="lang" role="group" aria-label="Language">
+            <button type="button" data-lang="en">EN</button>
+            <button type="button" data-lang="ru">RU</button>
+          </div>
+        </div>
       </header>
 
       <label class="search">
-        <span class="sr">Search</span>
-        <input id="q" type="search" placeholder="Name, street, industry…" autocomplete="off" />
+        <span class="sr" data-i18n="search">Search</span>
+        <input id="q" type="search" data-i18n-placeholder="searchPh" placeholder="Name, street, industry…" autocomplete="off" />
         <kbd>/</kbd>
       </label>
 
       <div class="filter-stack">
         <label>
-          Category
-          <select id="category">
-            <option value="">All categories</option>
-          </select>
+          <span data-i18n="category">Category</span>
+          <select id="category"></select>
         </label>
         <label>
-          Type
-          <select id="industry">
-            <option value="">All types</option>
-          </select>
+          <span data-i18n="type">Type</span>
+          <select id="industry"></select>
         </label>
         <label class="city-field">
-          City
-          <input id="city" placeholder="Start typing a city" autocomplete="off" />
+          <span data-i18n="city">City</span>
+          <input id="city" data-i18n-placeholder="cityPh" placeholder="Start typing a city" autocomplete="off" />
           <ul id="city-suggest" class="suggest hidden"></ul>
         </label>
         <label>
-          Sort
+          <span data-i18n="sort">Sort</span>
           <select id="sort">
-            <option value="name">Name A–Z</option>
-            <option value="contacts">Most complete contacts</option>
-            <option value="city">City A–Z</option>
-            <option value="industry">Type A–Z</option>
+            <option value="name" data-i18n="sortName">Name A–Z</option>
+            <option value="contacts" data-i18n="sortContacts">Most complete contacts</option>
+            <option value="city" data-i18n="sortCity">City A–Z</option>
+            <option value="industry" data-i18n="sortIndustry">Type A–Z</option>
           </select>
         </label>
       </div>
 
       <fieldset class="must">
-        <legend>Must have</legend>
-        <label><input type="checkbox" data-flag="has_website" /> Website</label>
-        <label><input type="checkbox" data-flag="has_email" /> Email</label>
-        <label><input type="checkbox" data-flag="has_phone" /> Phone</label>
-        <label><input type="checkbox" data-flag="has_kvk" /> KVK number</label>
+        <legend data-i18n="must">Must have</legend>
+        <label><input type="checkbox" data-flag="has_website" /> <span data-i18n="website">Website</span></label>
+        <label><input type="checkbox" data-flag="has_email" /> <span data-i18n="email">Email</span></label>
+        <label><input type="checkbox" data-flag="has_phone" /> <span data-i18n="phone">Phone</span></label>
+        <label><input type="checkbox" data-flag="has_kvk" /> <span data-i18n="kvk">KVK number</span></label>
       </fieldset>
 
       <div class="meta-row">
-        <p id="count">Loading atlas…</p>
-        <button type="button" id="reset" class="ghost">Reset</button>
+        <p id="count" data-i18n="loading">Loading atlas…</p>
+        <button type="button" id="reset" class="ghost" data-i18n="reset">Reset</button>
         <button type="button" id="export" class="ghost">CSV</button>
       </div>
 
       <div id="results" class="results"></div>
       <div class="pager">
-        <button type="button" id="prev" disabled>Prev</button>
+        <button type="button" id="prev" data-i18n="prev" disabled>Prev</button>
         <span id="page"></span>
-        <button type="button" id="next" disabled>Next</button>
+        <button type="button" id="next" data-i18n="next" disabled>Next</button>
       </div>
     </aside>
 
@@ -82,6 +86,10 @@
       <div id="hint" class="hint hidden"></div>
       <article id="detail" class="detail hidden"></article>
     </main>
+    <nav class="viewbar" aria-label="View">
+      <button type="button" data-view="list" class="on" data-i18n="viewList">List</button>
+      <button type="button" data-view="map" data-i18n="viewMap">Map</button>
+    </nav>
   </div>
   <script src="/vendor/leaflet.js"></script>
   <script src="/vendor/leaflet.markercluster.js"></script>

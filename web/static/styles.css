@@ -42,13 +42,41 @@ body {
   z-index: 2;
 }
 
+.brand-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
 .brand h1 {
   font-family: var(--serif);
   font-weight: 640;
   font-size: 34px;
   letter-spacing: -0.04em;
-  margin: 0 0 14px;
+  margin: 0;
   line-height: 0.95;
+}
+.lang {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.lang button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  font: 640 11px var(--sans);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.lang button.on {
+  background: var(--ink);
+  color: var(--paper);
 }
 .kicker {
   margin: 0 0 6px;
@@ -311,12 +339,88 @@ body {
   font-family: var(--sans);
 }
 
-@media (max-width: 900px) {
+.viewbar { display: none; }
+
+@media (max-width: 800px) {
+  html, body { height: 100%; overflow: hidden; }
   .shell {
     grid-template-columns: 1fr;
-    grid-template-rows: 42vh 58vh;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100dvh;
+    height: 100svh;
   }
-  .panel { border-right: 0; border-top: 1px solid var(--line); }
-  .mapwrap { min-height: 42vh; }
+  .panel {
+    grid-row: 1;
+    grid-column: 1;
+    border-right: 0;
+    padding: 14px 14px 8px;
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+  .mapwrap {
+    grid-row: 1;
+    grid-column: 1;
+    min-height: 0;
+    height: 100%;
+  }
+  body:not(.view-map) .mapwrap { display: none; }
+  body.view-map .panel { display: none; }
+
+  .viewbar {
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    z-index: 600;
+  }
+  .viewbar button {
+    border: 1px solid var(--line);
+    background: var(--field);
+    color: var(--ink);
+    border-radius: 12px;
+    min-height: 44px;
+    font: 640 14px var(--sans);
+    cursor: pointer;
+  }
+  .viewbar button.on {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
   .brand h1 { font-size: 28px; }
+  .search kbd { display: none; }
+  .search input,
+  .filter-stack input,
+  .filter-stack select { font-size: 16px; }
+  .pager button { min-height: 44px; padding: 10px 16px; }
+  .lang button { min-height: 36px; padding: 8px 12px; }
+
+  .detail {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: min(52dvh, 420px);
+    overflow: auto;
+    z-index: 700;
+  }
+  .hint {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    max-width: none;
+  }
+  .leaflet-top.leaflet-left {
+    top: auto;
+    bottom: 12px;
+    left: auto;
+    right: 10px;
+  }
+  .leaflet-control-attribution {
+    max-width: 62%;
+    font-size: 10px;
+  }
 }

@@ -29,6 +29,321 @@ const CAT_COLORS = {
 const NL_BOUNDS = [[50.75, 3.2], [53.7, 7.3]];
 const $ = (id) => document.getElementById(id);
 
+const INDUSTRY_RU = {
+  "amenity:restaurant": "ресторан",
+  "office:company": "компания",
+  "shop:clothes": "одежда",
+  "amenity:fast_food": "фастфуд",
+  "shop:hairdresser": "парикмахерская",
+  "amenity:cafe": "кафе",
+  "shop:supermarket": "супермаркет",
+  "amenity:fuel": "АЗС",
+  "amenity:pub": "паб",
+  "shop:bakery": "пекарня",
+  "shop:car_repair": "автосервис",
+  "shop:bicycle": "велосипеды",
+  "shop:car": "автомобили",
+  "tourism:hotel": "отель",
+  "amenity:doctors": "врачи",
+  "amenity:dentist": "стоматолог",
+  "shop:chemist": "бытовая химия",
+  "shop:beauty": "красота",
+  "shop:convenience": "минимаркет",
+  "tourism:guest_house": "гостевой дом",
+  "shop:optician": "оптика",
+  "shop:furniture": "мебель",
+  "shop:florist": "цветы",
+  "shop:shoes": "обувь",
+  "amenity:pharmacy": "аптека",
+  "shop:butcher": "мясная",
+  "shop:jewelry": "ювелирные",
+  "amenity:bar": "бар",
+  "office:yes": "офис",
+  "office:estate_agent": "недвижимость",
+  "shop:gift": "подарки",
+  "shop:alcohol": "алкоголь",
+  "shop:books": "книги",
+  "shop:doityourself": "стройтовары",
+  "shop:interior_decoration": "интерьер",
+  "shop:second_hand": "секонд-хенд",
+  "amenity:car_wash": "автомойка",
+  "shop:garden_centre": "садовый центр",
+  "shop:pet": "зоотовары",
+  "shop:variety_store": "товары для дома",
+  "shop:electronics": "электроника",
+  "shop:mobile_phone": "телефоны",
+  "amenity:veterinary": "ветеринар",
+  "shop:newsagent": "пресса",
+  "amenity:theatre": "театр",
+  "shop:sports": "спорттовары",
+  "shop:kitchen": "кухни",
+  "office:it": "IT",
+  "shop:department_store": "универмаг",
+  "shop:trade": "торговля",
+  "shop:seafood": "морепродукты",
+  "office:employment_agency": "кадры",
+  "amenity:clinic": "клиника",
+  "shop:cheese": "сыр",
+  "shop:toys": "игрушки",
+  "shop:houseware": "товары для дома",
+  "shop:greengrocer": "овощи и фрукты",
+  "shop:farm": "ферма",
+  "office:educational_institution": "образование",
+  "amenity:bank": "банк",
+  "shop:bed": "кровати",
+  "shop:massage": "массаж",
+  "shop:wholesale": "опт",
+  "shop:deli": "деликатесы",
+  "office:lawyer": "юрист",
+  "shop:pastry": "кондитерская",
+  "shop:hardware": "скобяные товары",
+  "shop:tattoo": "тату",
+  "shop:travel_agency": "турагентство",
+  "shop:yes": "магазин",
+  "shop:cannabis": "каннабис",
+  "amenity:car_rental": "прокат авто",
+  "shop:tailor": "ателье",
+  "shop:computer": "компьютеры",
+  "shop:art": "искусство",
+  "shop:hearing_aids": "слуховые аппараты",
+  "shop:perfumery": "парфюмерия",
+  "shop:car_parts": "автозапчасти",
+  "shop:telecommunication": "связь",
+  "shop:tobacco": "табак",
+};
+
+const I18N = {
+  en: {
+    kicker: "Open register · OSM",
+    search: "Search",
+    searchPh: "Name, street, industry…",
+    category: "Category",
+    type: "Type",
+    city: "City",
+    cityPh: "Start typing a city",
+    sort: "Sort",
+    sortName: "Name A–Z",
+    sortContacts: "Most complete contacts",
+    sortCity: "City A–Z",
+    sortIndustry: "Type A–Z",
+    must: "Must have",
+    website: "Website",
+    email: "Email",
+    phone: "Phone",
+    kvk: "KVK number",
+    loading: "Loading atlas…",
+    companies: "{n} companies",
+    matches: "{n} matches",
+    reset: "Reset",
+    prev: "Prev",
+    next: "Next",
+    viewList: "List",
+    viewMap: "Map",
+    empty: "Nothing in this cut.",
+    failed: "Failed to load",
+    leaflet: "Leaflet failed to load.",
+    zoom: "Zoom in — this view is sampled.",
+    noPoints: "No mapped points in this view.",
+    web: "Web",
+    mail: "Mail",
+    tel: "Tel",
+    address: "Address",
+    source: "Source",
+    checked: "Checked",
+    close: "Close",
+    osm: "OpenStreetMap",
+    cat_shop: "Shops",
+    cat_office: "Offices",
+    cat_food: "Food & drink",
+    cat_health: "Health",
+    cat_stay: "Stay",
+    cat_craft: "Craft",
+    cat_mobility: "Mobility",
+    cat_amenity: "Services",
+    cat_other: "Other",
+    allCategories: "All categories",
+    allTypes: "All types",
+    title: "Handelskaart — Dutch businesses",
+  },
+  ru: {
+    kicker: "Открытый реестр · OSM",
+    search: "Поиск",
+    searchPh: "Название, улица, отрасль…",
+    category: "Категория",
+    type: "Тип",
+    city: "Город",
+    cityPh: "Начните вводить город",
+    sort: "Сортировка",
+    sortName: "Имя А–Я",
+    sortContacts: "Сначала с контактами",
+    sortCity: "Город А–Я",
+    sortIndustry: "Тип А–Я",
+    must: "Обязательно",
+    website: "Сайт",
+    email: "Почта",
+    phone: "Телефон",
+    kvk: "Номер KVK",
+    loading: "Загрузка…",
+    companies: "{n} компаний",
+    matches: "{n} найдено",
+    reset: "Сброс",
+    prev: "Назад",
+    next: "Дальше",
+    viewList: "Список",
+    viewMap: "Карта",
+    empty: "Ничего не нашлось.",
+    failed: "Не удалось загрузить",
+    leaflet: "Карта не загрузилась.",
+    zoom: "Приблизьте карту — показана часть точек.",
+    noPoints: "В этой области нет точек.",
+    web: "Сайт",
+    mail: "Почта",
+    tel: "Тел",
+    address: "Адрес",
+    source: "Источник",
+    checked: "Проверено",
+    close: "Закрыть",
+    osm: "OpenStreetMap",
+    cat_shop: "Магазины",
+    cat_office: "Офисы",
+    cat_food: "Еда и напитки",
+    cat_health: "Медицина",
+    cat_stay: "Жильё",
+    cat_craft: "Ремесло",
+    cat_mobility: "Транспорт",
+    cat_amenity: "Услуги",
+    cat_other: "Другое",
+    allCategories: "Все категории",
+    allTypes: "Все типы",
+    title: "Handelskaart — компании Нидерландов",
+  },
+};
+
+let lang = localStorage.getItem("hk-lang") || (navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en");
+if (!I18N[lang]) lang = "en";
+let statsCache = null;
+let industryCache = { city: null, items: null };
+let lastResults = [];
+let lastCompany = null;
+let hintMode = "hidden";
+let countMode = "loading";
+
+function t(key, vars) {
+  let s = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  }
+  return s;
+}
+
+const KIND_NAME = {
+  shop: { en: "Shop", ru: "Магазин" },
+  office: { en: "Office", ru: "Офис" },
+  craft: { en: "Craft", ru: "Ремесло" },
+  tourism: { en: "Stay", ru: "Жильё" },
+  amenity: { en: "Service", ru: "Услуга" },
+};
+const CAT_ORDER = ["shop", "office", "food", "health", "stay", "craft", "mobility", "amenity", "other"];
+
+function titleCase(s) {
+  if (!s) return "";
+  const locale = lang === "ru" ? "ru" : "en";
+  return s.replace(/\p{L}+/gu, (word) => word.charAt(0).toLocaleUpperCase(locale) + word.slice(1));
+}
+
+function industryName(id, label) {
+  const value = (id || "").split(":")[1] || "";
+  const kind = (id || "").split(":")[0];
+  if (value === "yes" || value === "no") {
+    const names = KIND_NAME[kind];
+    if (names) return names[lang] || names.en;
+  }
+  if (id === "office:it") return "IT";
+  if (id === "shop:hifi") return "Hi-Fi";
+  const name = lang === "ru" && INDUSTRY_RU[id] ? INDUSTRY_RU[id] : label || "";
+  return titleCase(name);
+}
+
+function applyChrome() {
+  document.documentElement.lang = lang;
+  document.title = t("title");
+  for (const el of document.querySelectorAll("[data-i18n]")) {
+    el.textContent = t(el.dataset.i18n);
+  }
+  for (const el of document.querySelectorAll("[data-i18n-placeholder]")) {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  }
+  for (const btn of document.querySelectorAll(".lang button")) {
+    btn.classList.toggle("on", btn.dataset.lang === lang);
+    btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
+  }
+  fillCategories();
+  paintCount();
+  paintHint();
+  if (lastResults.length || $("results").childElementCount) paintResults();
+  if (lastCompany) paintDetail(lastCompany);
+}
+
+function fillCategories() {
+  const sel = $("category");
+  if (!sel || !statsCache) return;
+  const current = state.category || sel.value;
+  let cats = statsCache.categories;
+  if (state.city && industryCache.items) {
+    const present = new Set(industryCache.items.map((i) => i.category));
+    cats = cats.filter((c) => present.has(c.id));
+  }
+  sel.innerHTML =
+    `<option value="">${esc(t("allCategories"))}</option>` +
+    cats.map((c) => `<option value="${esc(c.id)}">${esc(t("cat_" + c.id))}</option>`).join("");
+  sel.value = cats.some((c) => c.id === current) ? current : "";
+  state.category = sel.value;
+}
+
+function paintCount() {
+  const el = $("count");
+  if (!el) return;
+  if (countMode === "loading") el.textContent = t("loading");
+  else if (countMode === "failed") el.textContent = t("failed");
+  else if (countMode === "companies") el.textContent = t("companies", { n: fmt(statsCache?.total || 0) });
+  else el.textContent = t("matches", { n: fmt(state.total) });
+}
+
+function paintHint() {
+  const hint = $("hint");
+  if (!hint) return;
+  if (hintMode === "zoom") {
+    hint.classList.remove("hidden");
+    hint.textContent = t("zoom");
+  } else if (hintMode === "empty") {
+    hint.classList.remove("hidden");
+    hint.textContent = t("noPoints");
+  } else {
+    hint.classList.add("hidden");
+  }
+}
+
+function setView(view) {
+  const mapMode = view === "map";
+  const cold = mapMode && map && map.getSize().x === 0;
+  document.body.classList.toggle("view-map", mapMode);
+  for (const btn of document.querySelectorAll(".viewbar button")) {
+    btn.classList.toggle("on", btn.dataset.view === (mapMode ? "map" : "list"));
+  }
+  if (!map || !mapMode) return;
+  requestAnimationFrame(() => {
+    map.invalidateSize({ animate: false });
+    if (cold) map.fitBounds(NL_BOUNDS, { padding: [20, 20], maxZoom: 8, animate: false });
+  });
+}
+
+function setLang(next) {
+  if (!I18N[next] || next === lang) return;
+  lang = next;
+  localStorage.setItem("hk-lang", lang);
+  loadIndustries().then(applyChrome);
+}
+
 function qs() {
   const p = new URLSearchParams();
   if (state.q) p.set("q", state.q);
@@ -55,13 +370,14 @@ function pinIcon(cat) {
 }
 
 function fmt(n) {
-  return new Intl.NumberFormat("nl-NL").format(n);
+  return new Intl.NumberFormat(lang === "ru" ? "ru-RU" : "en-GB").format(n);
 }
 
 function initMap() {
   if (typeof L === "undefined") {
+    hintMode = "empty";
     $("hint").classList.remove("hidden");
-    $("hint").textContent = "Leaflet failed to load.";
+    $("hint").textContent = t("leaflet");
     return;
   }
   map = L.map("map", {
@@ -106,15 +422,17 @@ function initMap() {
 
 async function boot() {
   initMap();
-  const stats = await (await fetch("/api/stats")).json();
-  const cat = $("category");
-  for (const c of stats.categories) {
-    const o = document.createElement("option");
-    o.value = c.id;
-    o.textContent = c.label;
-    cat.append(o);
-  }
+  statsCache = await (await fetch("/api/stats")).json();
+  applyChrome();
   await loadIndustries();
+  document.querySelector(".lang").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-lang]");
+    if (btn) setLang(btn.dataset.lang);
+  });
+  document.querySelector(".viewbar").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-view]");
+    if (btn) setView(btn.dataset.view);
+  });
 
   $("q").addEventListener("input", onQuery);
   $("category").addEventListener("change", async () => {
@@ -177,7 +495,8 @@ async function boot() {
     if (e.key === "Escape") $("detail").classList.add("hidden");
   });
 
-  $("count").textContent = `${fmt(stats.total)} companies`;
+  countMode = "companies";
+  paintCount();
   loadList();
 }
 
@@ -199,12 +518,37 @@ function resetFilters() {
   });
 }
 
+function typeOption(i) {
+  return `<option value="${esc(i.id)}">${esc(industryName(i.id, i.label))} · ${fmt(i.n)}</option>`;
+}
+
 async function loadIndustries() {
-  const p = state.category ? `?category=${encodeURIComponent(state.category)}` : "";
-  const items = await (await fetch(`/api/industries${p}`)).json();
-  $("industry").innerHTML =
-    `<option value="">All types</option>` +
-    items.map((i) => `<option value="${esc(i.id)}">${esc(i.label)} · ${fmt(i.n)}</option>`).join("");
+  const city = state.city || "";
+  if (industryCache.city !== city || !industryCache.items) {
+    const p = city ? `?city=${encodeURIComponent(city)}` : "";
+    industryCache = { city, items: await (await fetch(`/api/industries${p}`)).json() };
+  }
+  fillCategories();
+  const items = state.category
+    ? industryCache.items.filter((i) => i.category === state.category)
+    : industryCache.items;
+  if (state.industry && !items.some((i) => i.id === state.industry)) state.industry = "";
+  let html = `<option value="">${esc(t("allTypes"))}</option>`;
+  if (state.category) {
+    html += items.map(typeOption).join("");
+  } else {
+    const groups = {};
+    for (const item of items) {
+      const key = item.category || "other";
+      (groups[key] ||= []).push(item);
+    }
+    for (const cat of CAT_ORDER) {
+      const list = groups[cat];
+      if (!list || !list.length) continue;
+      html += `<optgroup label="${esc(t("cat_" + cat))}">${list.map(typeOption).join("")}</optgroup>`;
+    }
+  }
+  $("industry").innerHTML = html;
   if (state.industry) $("industry").value = state.industry;
 }
 
@@ -225,8 +569,10 @@ function onCityInput() {
       hideSuggest();
       if (state.city) {
         state.city = "";
+        state.industry = "";
         state.page = 1;
-        refresh({ fit: true });
+        industryCache = { city: null, items: null };
+        loadIndustries().then(() => refresh({ fit: true }));
       }
       return;
     }
@@ -251,7 +597,8 @@ function pickCity(name) {
   $("city").value = name;
   hideSuggest();
   state.page = 1;
-  refresh({ fit: true });
+  if (industryCache.city !== name) industryCache = { city: null, items: null };
+  loadIndustries().then(() => refresh({ fit: true }));
 }
 
 function hideSuggest() {
@@ -293,25 +640,32 @@ async function loadList() {
   const data = await (await fetch(`/api/search?${p}`)).json();
   state.total = data.total;
   state.pages = data.pages || 1;
-  $("count").textContent = `${fmt(data.total)} matches`;
+  countMode = "matches";
+  paintCount();
   $("page").textContent = data.pages ? `${data.page} / ${data.pages}` : "";
   $("prev").disabled = data.page <= 1;
   $("next").disabled = data.page >= data.pages;
-  $("results").innerHTML = data.results.map(cardHtml).join("") || `<p class="sub">Nothing in this cut.</p>`;
+  lastResults = data.results;
+  paintResults();
+}
+
+function paintResults() {
+  $("results").innerHTML = lastResults.map(cardHtml).join("") || `<p class="sub">${esc(t("empty"))}</p>`;
   for (const el of $("results").querySelectorAll(".card")) {
     el.onclick = () => openCompany(+el.dataset.id, true);
+    el.classList.toggle("active", lastCompany && +el.dataset.id === lastCompany.id);
   }
 }
 
 function cardHtml(r) {
   const bits = [];
-  if (r.website) bits.push("<span>Web</span>");
-  if (r.general_email) bits.push("<span>Mail</span>");
-  if (r.phone) bits.push("<span>Tel</span>");
+  if (r.website) bits.push(`<span>${esc(t("web"))}</span>`);
+  if (r.general_email) bits.push(`<span>${esc(t("mail"))}</span>`);
+  if (r.phone) bits.push(`<span>${esc(t("tel"))}</span>`);
   if (r.kvk_number) bits.push("<span>KVK</span>");
   return `<button class="card" data-id="${r.id}">
     <h3>${esc(r.company_name)}</h3>
-    <p class="sub">${esc(r.industry_label || "—")}${r.city ? " · " + esc(r.city) : ""}</p>
+    <p class="sub">${esc(industryName(r.industry, r.industry_label) || "—")}${r.city ? " · " + esc(r.city) : ""}</p>
     <div class="badges">${bits.join("")}</div>
   </button>`;
 }
@@ -343,47 +697,53 @@ async function loadPoints() {
     layers.push(m);
   }
   cluster.addLayers(layers);
-  const hint = $("hint");
-  if (data.truncated) {
-    hint.classList.remove("hidden");
-    hint.textContent = "Zoom in — this view is sampled.";
-  } else if (!layers.length) {
-    hint.classList.remove("hidden");
-    hint.textContent = "No mapped points in this view.";
-  } else {
-    hint.classList.add("hidden");
-  }
+  if (data.truncated) hintMode = "zoom";
+  else if (!layers.length) hintMode = "empty";
+  else hintMode = "hidden";
+  paintHint();
 }
 
 async function openCompany(id, fly) {
   const r = await (await fetch(`/api/company/${id}`)).json();
+  lastCompany = r;
+  paintDetail(r);
+  if (fly && r.lat && r.lon && map) {
+    if (window.matchMedia("(max-width: 800px)").matches) setView("map");
+    state.skipMove = true;
+    requestAnimationFrame(() => {
+      map.invalidateSize({ animate: false });
+      map.setView([r.lat, r.lon], Math.max(map.getZoom(), 15), { animate: false });
+      setTimeout(() => {
+        state.skipMove = false;
+        loadPoints();
+      }, 280);
+    });
+  }
+}
+
+function paintDetail(r) {
   const d = $("detail");
   d.classList.remove("hidden");
   d.innerHTML = `
-    <button class="close" aria-label="Close">×</button>
+    <button class="close" aria-label="${esc(t("close"))}">×</button>
     <h2>${esc(r.company_name)}</h2>
-    <p class="sub">${esc(r.industry_label || "")} ${r.city ? "· " + esc(r.city) : ""}</p>
+    <p class="sub">${esc(industryName(r.industry, r.industry_label))} ${r.city ? "· " + esc(r.city) : ""}</p>
     <dl>
-      ${row("Address", r.business_address)}
-      ${row("Website", r.website ? `<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.website)}</a>` : "")}
-      ${row("Email", r.general_email ? `<a href="mailto:${esc(r.general_email)}">${esc(r.general_email)}</a>` : "")}
-      ${row("Phone", r.phone ? `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>` : "")}
+      ${row(t("address"), r.business_address)}
+      ${row(t("website"), r.website ? `<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.website)}</a>` : "")}
+      ${row(t("email"), r.general_email ? `<a href="mailto:${esc(r.general_email)}">${esc(r.general_email)}</a>` : "")}
+      ${row(t("phone"), r.phone ? `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>` : "")}
       ${row("KVK", r.kvk_number)}
-      ${row("Source", r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">OpenStreetMap</a>` : "")}
-      ${row("Checked", r.verification_date)}
+      ${row(t("source"), r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">${esc(t("osm"))}</a>` : "")}
+      ${row(t("checked"), r.verification_date)}
     </dl>
   `;
-  d.querySelector(".close").onclick = () => d.classList.add("hidden");
+  d.querySelector(".close").onclick = () => {
+    d.classList.add("hidden");
+    lastCompany = null;
+  };
   for (const el of $("results").querySelectorAll(".card")) {
-    el.classList.toggle("active", +el.dataset.id === id);
-  }
-  if (fly && r.lat && r.lon && map) {
-    state.skipMove = true;
-    map.setView([r.lat, r.lon], Math.max(map.getZoom(), 15), { animate: true });
-    setTimeout(() => {
-      state.skipMove = false;
-      loadPoints();
-    }, 280);
+    el.classList.toggle("active", +el.dataset.id === r.id);
   }
 }
 
@@ -393,6 +753,7 @@ function row(label, value) {
 }
 
 boot().catch((err) => {
-  $("count").textContent = "Failed to load";
+  countMode = "failed";
+  paintCount();
   console.error(err);
 });

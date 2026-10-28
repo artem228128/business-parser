@@ -121,8 +121,8 @@ def where_clause(
         clauses.append("companies_fts MATCH ?")
         params.append(match)
     if city:
-        clauses.append("c.city LIKE ?")
-        params.append(city if city.endswith("%") else f"{city}%")
+        clauses.append("c.city = ?")
+        params.append(city)
     if category:
         clauses.append("c.category = ?")
         params.append(category)
@@ -237,19 +237,25 @@ def cities(q: str = "") -> list[dict[str, Any]]:
 
 
 @app.get("/api/industries")
-def industries(category: str = "") -> list[dict[str, Any]]:
+def industries(category: str = "", city: str = "") -> list[dict[str, Any]]:
     sql = """
-        SELECT industry, industry_label, COUNT(*) n
+        SELECT industry, industry_label, category, COUNT(*) n
         FROM companies
         WHERE industry != ''
     """
     params: list[Any] = []
+    if city:
+        sql += " AND city = ?"
+        params.append(city)
     if category:
         sql += " AND category = ?"
         params.append(category)
-    sql += " GROUP BY industry ORDER BY n DESC LIMIT 40"
+    sql += " GROUP BY industry, industry_label, category ORDER BY n DESC"
     rows = db().execute(sql, params).fetchall()
-    return [{"id": r["industry"], "label": r["industry_label"], "n": r["n"]} for r in rows]
+    return [
+        {"id": r["industry"], "label": r["industry_label"], "category": r["category"], "n": r["n"]}
+        for r in rows
+    ]
 
 
 @app.get("/api/search")
