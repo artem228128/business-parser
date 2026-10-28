@@ -18,6 +18,7 @@ FTS_TOKEN = re.compile(r"[A-Za-z0-9À-ÿ@.+'-]+")
 CATEGORIES = [
     ("shop", "Shops"),
     ("office", "Offices"),
+    ("public", "Government & NGOs"),
     ("food", "Food & drink"),
     ("health", "Health"),
     ("stay", "Stay"),

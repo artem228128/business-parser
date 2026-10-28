@@ -36,27 +36,25 @@
       </label>
 
       <div class="filter-stack">
-        <label>
+        <label class="combo-field">
           <span data-i18n="category">Category</span>
-          <select id="category"></select>
+          <input id="category" type="text" autocomplete="off" spellcheck="false" />
+          <ul id="category-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
-        <label>
+        <label class="combo-field">
           <span data-i18n="type">Type</span>
-          <select id="industry"></select>
+          <input id="industry" type="text" autocomplete="off" spellcheck="false" />
+          <ul id="industry-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
-        <label class="city-field">
+        <label class="combo-field city-field">
           <span data-i18n="city">City</span>
-          <input id="city" data-i18n-placeholder="cityPh" placeholder="Start typing a city" autocomplete="off" />
-          <ul id="city-suggest" class="suggest hidden"></ul>
+          <input id="city" type="text" data-i18n-placeholder="cityPh" placeholder="Start typing a city" autocomplete="off" spellcheck="false" />
+          <ul id="city-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
-        <label>
+        <label class="combo-field">
           <span data-i18n="sort">Sort</span>
-          <select id="sort">
-            <option value="name" data-i18n="sortName">Name A–Z</option>
-            <option value="contacts" data-i18n="sortContacts">Most complete contacts</option>
-            <option value="city" data-i18n="sortCity">City A–Z</option>
-            <option value="industry" data-i18n="sortIndustry">Type A–Z</option>
-          </select>
+          <input id="sort" type="text" autocomplete="off" spellcheck="false" />
+          <ul id="sort-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
       </div>
 

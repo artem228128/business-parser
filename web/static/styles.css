@@ -135,7 +135,8 @@ body {
   display: grid;
   gap: 5px;
 }
-.city-field { position: relative; grid-column: 1 / -1; }
+.city-field { grid-column: 1 / -1; }
+.combo-field { position: relative; }
 .filter-stack label:has(#sort) { grid-column: 1 / -1; }
 
 .suggest {
@@ -515,13 +516,35 @@ body {
 
 @media (min-width: 801px) {
   .panel-split { display: none; }
+  .panel-filters {
+    flex: 0 0 auto;
+  }
   .panel-sheet {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
     height: auto !important;
     max-height: none;
     border-top: 0;
     box-shadow: none;
+    transform: none;
+    transition: none;
   }
-  .panel-results { padding: 0; }
+  .panel-results {
+    padding: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-results .results {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .panel-results .pager {
+    flex: 0 0 auto;
+  }
 }

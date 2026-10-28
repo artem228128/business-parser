@@ -17,6 +17,7 @@ const state = {
 const CAT_COLORS = {
   shop: "#b84a1f",
   office: "#2f4f4b",
+  public: "#4a3d6b",
   food: "#c47a2c",
   health: "#5a6b3f",
   stay: "#6b4a6b",
@@ -73,6 +74,7 @@ const I18N = {
     osm: "OpenStreetMap",
     cat_shop: "Shops",
     cat_office: "Offices",
+    cat_public: "Government & NGOs",
     cat_food: "Food & drink",
     cat_health: "Health",
     cat_stay: "Stay",
@@ -125,6 +127,7 @@ const I18N = {
     osm: "OpenStreetMap",
     cat_shop: "Магазины",
     cat_office: "Офисы",
+    cat_public: "Государство и НКО",
     cat_food: "Еда и напитки",
     cat_health: "Медицина",
     cat_stay: "Жильё",
@@ -162,7 +165,25 @@ const KIND_NAME = {
   tourism: { en: "Stay", ru: "Жильё" },
   amenity: { en: "Service", ru: "Услуга" },
 };
-const CAT_ORDER = ["shop", "office", "food", "health", "stay", "craft", "mobility", "amenity", "other"];
+const CAT_ORDER = ["shop", "office", "public", "food", "health", "stay", "craft", "mobility", "amenity", "other"];
+
+const SORT_OPTS = [
+  { id: "name", labelKey: "sortName" },
+  { id: "contacts", labelKey: "sortContacts" },
+  { id: "city", labelKey: "sortCity" },
+  { id: "industry", labelKey: "sortIndustry" },
+];
+
+const COMBO_LISTS = ["category-suggest", "industry-suggest", "city-suggest", "sort-suggest"];
+
+const PUBLIC_OFFICE_RU = {
+  "office:government": "госорган",
+  "office:diplomatic": "диппредставительство",
+  "office:ngo": "НКО",
+  "office:association": "ассоциация",
+  "office:political_party": "политическая партия",
+  "office:religion": "религиозная организация",
+};
 
 function titleCase(s) {
   if (!s) return "";
@@ -179,8 +200,10 @@ function industryName(id, label) {
   }
   if (id === "office:it") return "IT";
   if (id === "shop:hifi") return "Hi-Fi";
-  const name =
-    lang === "ru" && industryRu[id] ? industryRu[id] : label || "";
+  let name = label || "";
+  if (lang === "ru") {
+    name = industryRu[id] || PUBLIC_OFFICE_RU[id] || label || "";
+  }
   return titleCase(name);
 }
 
@@ -197,27 +220,178 @@ function applyChrome() {
     btn.classList.toggle("on", btn.dataset.lang === lang);
     btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
   }
-  fillCategories();
+  syncFilterInputs();
   paintCount();
   paintHint();
   if (lastResults.length || $("results").childElementCount) paintResults();
   if (lastCompany) paintDetail(lastCompany);
+  if ($("category")?.matches(":focus")) openCategoryCombo();
+  if ($("industry")?.matches(":focus")) openIndustryCombo();
 }
 
-function fillCategories() {
-  const sel = $("category");
-  if (!sel || !statsCache) return;
-  const current = state.category || sel.value;
+function normCombo(s) {
+  return (s || "").trim().toLowerCase();
+}
+
+function hideAllCombos() {
+  for (const id of COMBO_LISTS) $(id)?.classList.add("hidden");
+}
+
+function showComboList(listId, items, onPick) {
+  const box = $(listId);
+  if (!box) return;
+  if (!items.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+  box.innerHTML = items
+    .map(
+      (item) =>
+        `<li role="option" data-value="${esc(item.id)}" tabindex="-1">` +
+        `<span>${esc(item.label)}</span>` +
+        (item.hint ? `<span class="n">${esc(item.hint)}</span>` : "") +
+        `</li>`
+    )
+    .join("");
+  for (const li of box.querySelectorAll("li")) {
+    li.onclick = () => onPick(li.dataset.value || "");
+  }
+}
+
+function filterByQuery(options, query, extraKeys = []) {
+  const q = normCombo(query);
+  if (!q) return options;
+  return options.filter((o) => {
+    const hay = [o.label, o.id, o.search, ...extraKeys.map((k) => o[k])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function categoryOptions() {
+  if (!statsCache) return [];
   let cats = statsCache.categories;
   if (state.city && industryCache.items) {
     const present = new Set(industryCache.items.map((i) => i.category));
     cats = cats.filter((c) => present.has(c.id));
   }
-  sel.innerHTML =
-    `<option value="">${esc(t("allCategories"))}</option>` +
-    cats.map((c) => `<option value="${esc(c.id)}">${esc(t("cat_" + c.id))}</option>`).join("");
-  sel.value = cats.some((c) => c.id === current) ? current : "";
-  state.category = sel.value;
+  return [{ id: "", label: t("allCategories") }].concat(
+    cats.map((c) => ({ id: c.id, label: categoryLabel(c.id) }))
+  );
+}
+
+function categoryLabel(id) {
+  if (!id) return "";
+  const key = "cat_" + id;
+  const s = t(key);
+  return s !== key ? s : id;
+}
+
+function industryOptionsList() {
+  if (!industryCache.items) return [{ id: "", label: t("allTypes") }];
+  const items = state.category
+    ? industryCache.items.filter((i) => i.category === state.category)
+    : industryCache.items;
+  const opts = [{ id: "", label: t("allTypes") }];
+  for (const i of items) {
+    const label = `${industryName(i.id, i.label)} · ${fmt(i.n)}`;
+    const ru =
+      lang === "ru" ? industryRu[i.id] || PUBLIC_OFFICE_RU[i.id] || "" : "";
+    opts.push({
+      id: i.id,
+      label,
+      search: `${i.label} ${i.id} ${ru}`,
+    });
+  }
+  return opts;
+}
+
+function industryLabel(id) {
+  if (!id || !industryCache.items) return "";
+  const item = industryCache.items.find((i) => i.id === id);
+  return item ? `${industryName(item.id, item.label)} · ${fmt(item.n)}` : "";
+}
+
+function sortOptions() {
+  return SORT_OPTS.map((o) => ({ id: o.id, label: t(o.labelKey) }));
+}
+
+function sortLabel(id) {
+  const o = SORT_OPTS.find((s) => s.id === id);
+  return o ? t(o.labelKey) : "";
+}
+
+function syncFilterInputs() {
+  const cat = $("category");
+  if (cat) cat.value = state.category ? categoryLabel(state.category) : "";
+  const ind = $("industry");
+  if (ind) ind.value = state.industry ? industryLabel(state.industry) : "";
+  const srt = $("sort");
+  if (srt) srt.value = sortLabel(state.sort || "name");
+  const city = $("city");
+  if (city && state.city) city.value = state.city;
+}
+
+function openCategoryCombo() {
+  showComboList("category-suggest", filterByQuery(categoryOptions(), $("category").value), pickCategory);
+}
+
+function pickCategory(id) {
+  state.category = id;
+  $("category").value = id ? categoryLabel(id) : "";
+  hideAllCombos();
+  state.industry = "";
+  $("industry").value = "";
+  state.page = 1;
+  loadIndustries().then(() => refresh({ fit: true }));
+}
+
+function openIndustryCombo() {
+  showComboList("industry-suggest", filterByQuery(industryOptionsList(), $("industry").value, ["search"]), pickIndustry);
+}
+
+function pickIndustry(id) {
+  state.industry = id;
+  $("industry").value = id ? industryLabel(id) : "";
+  hideAllCombos();
+  state.page = 1;
+  refresh({ fit: true });
+}
+
+function openSortCombo() {
+  showComboList("sort-suggest", filterByQuery(sortOptions(), $("sort").value), pickSort);
+}
+
+function pickSort(id) {
+  state.sort = id || "name";
+  $("sort").value = sortLabel(state.sort);
+  hideAllCombos();
+  state.page = 1;
+  loadList();
+}
+
+function bindCombo(inputId, openFn, pickFromInput) {
+  const input = $(inputId);
+  if (!input) return;
+  input.addEventListener("focus", openFn);
+  input.addEventListener("click", openFn);
+  input.addEventListener("input", openFn);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideAllCombos();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      pickFromInput();
+    }
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (document.activeElement?.closest(".combo-field")) return;
+      syncFilterInputs();
+    }, 120);
+  });
 }
 
 function paintCount() {
@@ -462,6 +636,7 @@ async function boot() {
   statsCache = stats;
   applyChrome();
   await loadIndustries();
+  syncFilterInputs();
   document.querySelector(".lang").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-lang]");
     if (btn) setLang(btn.dataset.lang);
@@ -472,34 +647,46 @@ async function boot() {
   });
 
   $("q").addEventListener("input", onQuery);
-  $("category").addEventListener("change", async () => {
-    state.category = $("category").value;
-    state.industry = "";
-    state.page = 1;
-    await loadIndustries();
-    refresh({ fit: true });
+  bindCombo("category", openCategoryCombo, () => {
+    const q = normCombo($("category").value);
+    if (!q) pickCategory("");
+    else {
+      const match = categoryOptions().find((o) => normCombo(o.label) === q);
+      if (match) pickCategory(match.id);
+      else openCategoryCombo();
+    }
   });
-  $("industry").addEventListener("change", () => {
-    state.industry = $("industry").value;
-    state.page = 1;
-    refresh({ fit: true });
+  bindCombo("industry", openIndustryCombo, () => {
+    const q = normCombo($("industry").value);
+    if (!q) pickIndustry("");
+    else {
+      const match = industryOptionsList().find((o) => normCombo(o.label).startsWith(q) || normCombo(o.search).includes(q));
+      if (match) pickIndustry(match.id);
+      else openIndustryCombo();
+    }
   });
-  $("sort").addEventListener("change", () => {
-    state.sort = $("sort").value;
-    state.page = 1;
-    loadList();
+  bindCombo("sort", openSortCombo, () => {
+    const q = normCombo($("sort").value);
+    const match = sortOptions().find((o) => normCombo(o.label) === q);
+    if (match) pickSort(match.id);
+    else pickSort(state.sort || "name");
   });
   $("city").addEventListener("input", onCityInput);
   $("city").addEventListener("focus", onCityInput);
+  $("city").addEventListener("click", onCityInput);
   $("city").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      pickCity($("city").value.trim());
+      const q = $("city").value.trim();
+      const box = $("city-suggest");
+      const first = box?.querySelector("li[data-city]");
+      if (first && !state.city) pickCity(first.dataset.city);
+      else pickCity(q);
     }
-    if (e.key === "Escape") hideSuggest();
+    if (e.key === "Escape") hideAllCombos();
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".city-field")) hideSuggest();
+    if (!e.target.closest(".combo-field")) hideAllCombos();
   });
   document.querySelector(".must").addEventListener("change", (e) => {
     const box = e.target.closest("input[data-flag]");
@@ -542,20 +729,13 @@ function resetFilters() {
   state.sort = "name";
   state.page = 1;
   $("q").value = "";
-  $("city").value = "";
-  $("category").value = "";
-  $("industry").value = "";
-  $("sort").value = "name";
   for (const box of document.querySelectorAll(".must input")) box.checked = false;
-  hideSuggest();
+  hideAllCombos();
   loadIndustries().then(() => {
+    syncFilterInputs();
     if (map) map.fitBounds(NL_BOUNDS, { padding: [12, 12] });
     refresh();
   });
-}
-
-function typeOption(i) {
-  return `<option value="${esc(i.id)}">${esc(industryName(i.id, i.label))} · ${fmt(i.n)}</option>`;
 }
 
 async function loadIndustries() {
@@ -564,28 +744,11 @@ async function loadIndustries() {
     const p = city ? `?city=${encodeURIComponent(city)}` : "";
     industryCache = { city, items: await (await fetch(`/api/industries${p}`)).json() };
   }
-  fillCategories();
   const items = state.category
     ? industryCache.items.filter((i) => i.category === state.category)
     : industryCache.items;
   if (state.industry && !items.some((i) => i.id === state.industry)) state.industry = "";
-  let html = `<option value="">${esc(t("allTypes"))}</option>`;
-  if (state.category) {
-    html += items.map(typeOption).join("");
-  } else {
-    const groups = {};
-    for (const item of items) {
-      const key = item.category || "other";
-      (groups[key] ||= []).push(item);
-    }
-    for (const cat of CAT_ORDER) {
-      const list = groups[cat];
-      if (!list || !list.length) continue;
-      html += `<optgroup label="${esc(t("cat_" + cat))}">${list.map(typeOption).join("")}</optgroup>`;
-    }
-  }
-  $("industry").innerHTML = html;
-  if (state.industry) $("industry").value = state.industry;
+  syncFilterInputs();
 }
 
 function onQuery() {
@@ -602,7 +765,6 @@ function onCityInput() {
   cityTimer = setTimeout(async () => {
     const q = $("city").value.trim();
     if (q.length < 1) {
-      hideSuggest();
       if (state.city) {
         state.city = "";
         state.industry = "";
@@ -610,35 +772,47 @@ function onCityInput() {
         industryCache = { city: null, items: null };
         loadIndustries().then(() => refresh({ fit: true }));
       }
+      const items = await (await fetch("/api/cities")).json();
+      renderCitySuggest(items);
       return;
     }
     const items = await (await fetch(`/api/cities?q=${encodeURIComponent(q)}`)).json();
-    const box = $("city-suggest");
-    if (!items.length) {
-      hideSuggest();
-      return;
-    }
-    box.classList.remove("hidden");
-    box.innerHTML = items
-      .map((c) => `<li data-city="${esc(c.name)}"><span>${esc(c.name)}</span><span class="n">${fmt(c.n)}</span></li>`)
-      .join("");
-    for (const li of box.querySelectorAll("li")) {
-      li.onclick = () => pickCity(li.dataset.city);
-    }
-  }, 140);
+    renderCitySuggest(items);
+  }, 100);
+}
+
+function renderCitySuggest(items) {
+  const box = $("city-suggest");
+  if (!items.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+  box.innerHTML = items
+    .map((c) => `<li role="option" data-city="${esc(c.name)}"><span>${esc(c.name)}</span><span class="n">${fmt(c.n)}</span></li>`)
+    .join("");
+  for (const li of box.querySelectorAll("li")) {
+    li.onclick = () => pickCity(li.dataset.city);
+  }
 }
 
 function pickCity(name) {
-  state.city = name;
-  $("city").value = name;
-  hideSuggest();
+  const exact = (name || "").trim();
+  if (!exact) {
+    state.city = "";
+    $("city").value = "";
+    hideAllCombos();
+    state.page = 1;
+    industryCache = { city: null, items: null };
+    loadIndustries().then(() => refresh({ fit: true }));
+    return;
+  }
+  state.city = exact;
+  $("city").value = exact;
+  hideAllCombos();
   state.page = 1;
-  if (industryCache.city !== name) industryCache = { city: null, items: null };
+  if (industryCache.city !== exact) industryCache = { city: null, items: null };
   loadIndustries().then(() => refresh({ fit: true }));
-}
-
-function hideSuggest() {
-  $("city-suggest").classList.add("hidden");
 }
 
 function refresh(opts = {}) {

@@ -43,6 +43,10 @@ MOBILITY = {
     "bicycle_rental",
 }
 
+PUBLIC_OFFICE_TYPES = frozenset(
+    {"government", "diplomatic", "ngo", "association", "political_party", "religion"}
+)
+
 
 def city_from(addr: str) -> str:
     if not addr:
@@ -61,6 +65,8 @@ def category_of(industry: str) -> str:
     if kind == "shop":
         return "shop"
     if kind == "office":
+        if val in PUBLIC_OFFICE_TYPES:
+            return "public"
         return "office"
     if kind == "craft":
         return "craft"
