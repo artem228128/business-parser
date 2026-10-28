@@ -37,6 +37,7 @@ _API_TAILS = (
     "/cities",
     "/industries",
     "/search",
+    "/suggest",
     "/points",
     "/bounds",
     "/company",
@@ -81,17 +82,21 @@ def db() -> sqlite3.Connection:
     return DB
 
 
-def fts_match(q: str) -> str | None:
-    tokens = FTS_TOKEN.findall(q.strip())
-    if not tokens:
-        return None
-    parts = []
-    for t in tokens[:8]:
+def name_query_tokens(q: str) -> list[str]:
+    out: list[str] = []
+    for t in FTS_TOKEN.findall(q.strip()):
         clean = t.replace('"', "")
-        if not clean:
-            continue
-        parts.append(f"{clean}*")
-    return " AND ".join(parts) if parts else None
+        if clean:
+            out.append(clean)
+        if len(out) >= 6:
+            break
+    return out
+
+
+def append_name_filters(q: str, clauses: list[str], params: list[Any], col: str = "c.company_name") -> None:
+    for token in name_query_tokens(q):
+        clauses.append(f"{col} LIKE ? COLLATE NOCASE")
+        params.append(f"%{token}%")
 
 
 SORTS = {
@@ -116,11 +121,8 @@ def where_clause(
     clauses = ["1=1"]
     params: list[Any] = []
     join = ""
-    match = fts_match(q) if q else None
-    if match:
-        join = "JOIN companies_fts ON companies_fts.rowid = c.id"
-        clauses.append("companies_fts MATCH ?")
-        params.append(match)
+    if q.strip():
+        append_name_filters(q, clauses, params)
     if city:
         clauses.append("c.city = ?")
         params.append(city)
@@ -255,6 +257,40 @@ def industries(category: str = "", city: str = "") -> list[dict[str, Any]]:
     rows = db().execute(sql, params).fetchall()
     return [
         {"id": r["industry"], "label": r["industry_label"], "category": r["category"], "n": r["n"]}
+        for r in rows
+    ]
+
+
+@app.get("/api/suggest")
+def suggest(q: str = "", limit: int = Query(12, ge=1, le=20)) -> list[dict[str, Any]]:
+    needle = q.strip()
+    tokens = name_query_tokens(needle)
+    if len(needle) < 2 or not tokens:
+        return []
+    name_clauses = ["company_name LIKE ? COLLATE NOCASE" for _ in tokens]
+    params: list[Any] = [f"%{t}%" for t in tokens]
+    prefix = f"{tokens[0]}%"
+    params.extend([prefix, limit])
+    rows = db().execute(
+        f"""
+        SELECT id, company_name, city, industry_label
+        FROM companies
+        WHERE {" AND ".join(name_clauses)}
+        ORDER BY
+          CASE WHEN company_name LIKE ? COLLATE NOCASE THEN 0 ELSE 1 END,
+          length(company_name),
+          company_name COLLATE NOCASE
+        LIMIT ?
+        """,
+        params,
+    ).fetchall()
+    return [
+        {
+            "id": r["id"],
+            "name": r["company_name"],
+            "city": r["city"] or "",
+            "industry_label": r["industry_label"] or "",
+        }
         for r in rows
     ]
 

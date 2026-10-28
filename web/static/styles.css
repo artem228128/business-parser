@@ -88,6 +88,7 @@ body {
 }
 
 .search { position: relative; display: block; margin-bottom: 12px; }
+.search .suggest { z-index: 25; }
 .search input,
 .filter-stack input,
 .filter-stack select {
@@ -187,6 +188,12 @@ body {
   gap: 8px;
 }
 .suggest li:hover, .suggest li.active { background: var(--chip); }
+.suggest li.combo-divider-after {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+  padding-bottom: 10px;
+  border-radius: 8px 8px 0 0;
+}
 .suggest .n { color: var(--muted); font-size: 11px; }
 
 .must {

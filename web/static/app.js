@@ -36,7 +36,7 @@ const I18N = {
   en: {
     kicker: "Open register · OSM",
     search: "Search",
-    searchPh: "Name, street, industry…",
+    searchPh: "Company name…",
     category: "Category",
     type: "Type",
     city: "City",
@@ -92,7 +92,7 @@ const I18N = {
   ru: {
     kicker: "Открытый реестр · OSM",
     search: "Поиск",
-    searchPh: "Название, улица, отрасль…",
+    searchPh: "Название компании…",
     category: "Категория",
     type: "Тип",
     city: "Город",
@@ -174,7 +174,7 @@ const KIND_NAME = {
 };
 const CAT_ORDER = ["shop", "office", "public", "food", "health", "stay", "craft", "mobility", "amenity", "other"];
 
-const COMBO_LISTS = ["category-suggest", "industry-suggest", "city-suggest"];
+const COMBO_LISTS = ["q-suggest", "category-suggest", "industry-suggest", "city-suggest"];
 
 const PUBLIC_OFFICE_RU = {
   "office:government": "госорган",
@@ -240,6 +240,12 @@ function hideAllCombos() {
   for (const id of COMBO_LISTS) $(id)?.classList.add("hidden");
 }
 
+function hideOtherCombos(exceptId) {
+  for (const id of COMBO_LISTS) {
+    if (id !== exceptId) $(id)?.classList.add("hidden");
+  }
+}
+
 function closeComboInput(inputId, suppressMs = 320) {
   hideAllCombos();
   comboSuppressUntil = Date.now() + suppressMs;
@@ -263,13 +269,15 @@ function showComboList(listId, items, onPick) {
   }
   box.classList.remove("hidden");
   box.innerHTML = items
-    .map(
-      (item) =>
-        `<li role="option" data-value="${esc(item.id)}" tabindex="-1">` +
+    .map((item) => {
+      const cls = item.dividerAfter ? " combo-divider-after" : "";
+      return (
+        `<li role="option" class="${cls.trim()}" data-value="${esc(item.id)}" tabindex="-1">` +
         `<span>${esc(item.label)}</span>` +
         (item.hint ? `<span class="n">${esc(item.hint)}</span>` : "") +
         `</li>`
-    )
+      );
+    })
     .join("");
   bindSuggestPick(box, "li", onPick);
 }
@@ -293,7 +301,7 @@ function categoryOptions() {
     const present = new Set(industryCache.items.map((i) => i.category));
     cats = cats.filter((c) => present.has(c.id));
   }
-  return [{ id: "", label: t("allCategories") }].concat(
+  return [{ id: "", label: t("allCategories"), dividerAfter: true }].concat(
     cats.map((c) => ({ id: c.id, label: categoryLabel(c.id) }))
   );
 }
@@ -306,11 +314,11 @@ function categoryLabel(id) {
 }
 
 function industryOptionsList() {
-  if (!industryCache.items) return [{ id: "", label: t("allTypes") }];
+  if (!industryCache.items) return [{ id: "", label: t("allTypes"), dividerAfter: true }];
   const items = state.category
     ? industryCache.items.filter((i) => i.category === state.category)
     : industryCache.items;
-  const opts = [{ id: "", label: t("allTypes") }];
+  const opts = [{ id: "", label: t("allTypes"), dividerAfter: true }];
   for (const i of items) {
     const label = `${industryName(i.id, i.label)} · ${fmt(i.n)}`;
     const ru =
@@ -722,7 +730,15 @@ async function boot() {
     if (btn) setView(btn.dataset.view);
   });
 
-  $("q").addEventListener("input", onQuery);
+  $("q").addEventListener("input", onSearchInput);
+  $("q").addEventListener("focus", onSearchInput);
+  $("q").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyNameSearch();
+    }
+    if (e.key === "Escape") hideAllCombos();
+  });
   bindCombo("category", openCategoryCombo, () => {
     const q = normCombo($("category").value);
     if (!q) pickCategory("");
@@ -833,13 +849,84 @@ async function loadIndustries() {
   syncFilterInputs();
 }
 
-function onQuery() {
+function applyNameSearch() {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    state.q = $("q").value.trim();
+  clearTimeout(searchApplyTimer);
+  state.q = $("q").value.trim();
+  state.page = 1;
+  hideAllCombos();
+  refresh({ fit: true });
+}
+
+let searchApplyTimer;
+
+function onSearchInput() {
+  clearTimeout(debounceTimer);
+  clearTimeout(searchApplyTimer);
+  const q = $("q").value.trim();
+  if (q.length < 2) {
+    $("q-suggest")?.classList.add("hidden");
+    if (state.q) {
+      state.q = "";
+      state.page = 1;
+      refresh({ fit: true });
+    }
+    return;
+  }
+  debounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+      const items = await res.json();
+      if (!res.ok || !Array.isArray(items)) throw new Error("suggest failed");
+      renderNameSuggest(items);
+    } catch {
+      $("q-suggest")?.classList.add("hidden");
+    }
+  }, 140);
+  searchApplyTimer = setTimeout(() => {
+    state.q = q;
     state.page = 1;
     refresh({ fit: true });
-  }, 220);
+  }, 420);
+}
+
+function renderNameSuggest(items) {
+  const box = $("q-suggest");
+  if (!box) return;
+  if (!Array.isArray(items)) items = [];
+  hideOtherCombos("q-suggest");
+  if (!items.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+  box.innerHTML = items
+    .map(
+      (c) => {
+        const sub = [c.city, c.industry_label].filter(Boolean).join(" · ");
+        return (
+          `<li role="option" data-id="${c.id}">` +
+          `<span>${esc(c.name)}</span>` +
+          (sub ? `<span class="n">${esc(sub)}</span>` : "") +
+          `</li>`
+        );
+      }
+    )
+    .join("");
+  for (const li of box.querySelectorAll("li")) {
+    const item = items.find((c) => String(c.id) === li.dataset.id);
+    if (!item) continue;
+    li.addEventListener("mousedown", (e) => e.preventDefault());
+    li.addEventListener("click", (e) => {
+      e.stopPropagation();
+      $("q").value = item.name;
+      state.q = item.name;
+      state.page = 1;
+      hideAllCombos();
+      refresh({ fit: true });
+      openCompany(item.id, true);
+    });
+  }
 }
 
 function onCityInput() {

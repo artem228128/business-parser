@@ -29,9 +29,10 @@
         </div>
       </header>
 
-      <label class="search">
+      <label class="search combo-field">
         <span class="sr" data-i18n="search">Search</span>
-        <input id="q" type="search" data-i18n-placeholder="searchPh" placeholder="Name, street, industry…" autocomplete="off" />
+        <input id="q" type="search" data-i18n-placeholder="searchPh" placeholder="Company name…" autocomplete="off" spellcheck="false" />
+        <ul id="q-suggest" class="suggest hidden" role="listbox"></ul>
         <kbd>/</kbd>
       </label>
 
