@@ -608,8 +608,22 @@ function setMapMarkerSelection(id, category) {
   selectedMapId = id || null;
   if (!id || !markerById.has(id)) return;
   const m = markerById.get(id);
-  m.setIcon(pinIcon(category || m._hkCat, true));
-  m.openPopup();
+  const cat = category || m._hkCat;
+  const apply = () => {
+    m.setIcon(pinIcon(cat, true));
+    m.openPopup();
+  };
+  if (cluster?.zoomToShowLayer) {
+    state.skipMove = true;
+    cluster.zoomToShowLayer(m, () => {
+      apply();
+      setTimeout(() => {
+        state.skipMove = false;
+      }, 80);
+    });
+  } else {
+    apply();
+  }
 }
 
 function focusCompanyInList(id) {
@@ -664,7 +678,7 @@ function initMap() {
     maxClusterRadius: 52,
     showCoverageOnHover: false,
     spiderfyOnMaxZoom: true,
-    disableClusteringAtZoom: 16,
+    disableClusteringAtZoom: 17,
   });
   map.addLayer(cluster);
   const ready = () => {
@@ -989,7 +1003,10 @@ async function loadPoints() {
     m._hkId = pt.id;
     markerById.set(pt.id, m);
     m.bindPopup(`<strong>${esc(pt.name)}</strong><br><span style="color:#6b6458;font-size:11px">${esc(t("onMap"))}</span>`);
-    m.on("click", () => openCompany(pt.id, true));
+    m.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      openCompany(pt.id, false);
+    });
     layers.push(m);
   }
   cluster.addLayers(layers);
@@ -1005,18 +1022,22 @@ async function openCompany(id, fly) {
   if (r.error) return;
   lastCompany = r;
   paintDetail(r);
-  setMapMarkerSelection(r.id, r.category);
   if (fly && r.lat && r.lon && map) {
     if (window.matchMedia("(max-width: 800px)").matches) setView("map");
     state.skipMove = true;
+    const z = Math.max(map.getZoom(), 17);
+    const onMoved = () => {
+      map.off("moveend", onMoved);
+      state.skipMove = false;
+      loadPoints();
+    };
     requestAnimationFrame(() => {
       map.invalidateSize({ animate: false });
-      map.setView([r.lat, r.lon], Math.max(map.getZoom(), 15), { animate: false });
-      setTimeout(() => {
-        state.skipMove = false;
-        loadPoints();
-      }, 280);
+      map.flyTo([r.lat, r.lon], z, { duration: 0.35 });
+      map.on("moveend", onMoved);
     });
+  } else {
+    setMapMarkerSelection(r.id, r.category);
   }
 }
 
