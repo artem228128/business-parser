@@ -137,6 +137,25 @@ body {
 }
 .city-field { grid-column: 1 / -1; }
 .combo-field { position: relative; }
+.combo-input-wrap { position: relative; }
+.combo-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: var(--chip);
+  color: var(--muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  font: 500 18px/1 var(--sans);
+  cursor: pointer;
+  padding: 0;
+  z-index: 3;
+}
+.combo-clear:hover { color: var(--ink); background: var(--line); }
+.combo-clear.hidden { display: none; }
 .filter-stack label:has(#sort) { grid-column: 1 / -1; }
 
 .suggest {

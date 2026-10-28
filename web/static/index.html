@@ -38,22 +38,34 @@
       <div class="filter-stack">
         <label class="combo-field">
           <span data-i18n="category">Category</span>
-          <input id="category" type="text" autocomplete="off" spellcheck="false" />
+          <div class="combo-input-wrap">
+            <input id="category" type="text" autocomplete="off" spellcheck="false" />
+            <button type="button" class="combo-clear hidden" data-clear="category" data-i18n-aria="clear" aria-label="Clear">×</button>
+          </div>
           <ul id="category-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
         <label class="combo-field">
           <span data-i18n="type">Type</span>
-          <input id="industry" type="text" autocomplete="off" spellcheck="false" />
+          <div class="combo-input-wrap">
+            <input id="industry" type="text" autocomplete="off" spellcheck="false" />
+            <button type="button" class="combo-clear hidden" data-clear="industry" data-i18n-aria="clear" aria-label="Clear">×</button>
+          </div>
           <ul id="industry-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
         <label class="combo-field city-field">
           <span data-i18n="city">City</span>
-          <input id="city" type="text" data-i18n-placeholder="cityPh" placeholder="Start typing a city" autocomplete="off" spellcheck="false" />
+          <div class="combo-input-wrap">
+            <input id="city" type="text" data-i18n-placeholder="cityPh" placeholder="Start typing a city" autocomplete="off" spellcheck="false" />
+            <button type="button" class="combo-clear hidden" data-clear="city" data-i18n-aria="clear" aria-label="Clear">×</button>
+          </div>
           <ul id="city-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
         <label class="combo-field">
           <span data-i18n="sort">Sort</span>
-          <input id="sort" type="text" autocomplete="off" spellcheck="false" />
+          <div class="combo-input-wrap">
+            <input id="sort" type="text" autocomplete="off" spellcheck="false" />
+            <button type="button" class="combo-clear hidden" data-clear="sort" data-i18n-aria="clear" aria-label="Clear">×</button>
+          </div>
           <ul id="sort-suggest" class="suggest hidden" role="listbox"></ul>
         </label>
       </div>

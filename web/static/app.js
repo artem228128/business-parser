@@ -84,6 +84,7 @@ const I18N = {
     cat_other: "Other",
     allCategories: "All categories",
     allTypes: "All types",
+    clear: "Clear",
     title: "Handelskaart — Dutch businesses",
   },
   ru: {
@@ -137,6 +138,7 @@ const I18N = {
     cat_other: "Другое",
     allCategories: "Все категории",
     allTypes: "Все типы",
+    clear: "Очистить",
     title: "Handelskaart — компании Нидерландов",
   },
 };
@@ -149,6 +151,7 @@ let lastResults = [];
 let lastCompany = null;
 let hintMode = "hidden";
 let countMode = "loading";
+let comboSuppressUntil = 0;
 
 function t(key, vars) {
   let s = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
@@ -216,6 +219,9 @@ function applyChrome() {
   for (const el of document.querySelectorAll("[data-i18n-placeholder]")) {
     el.placeholder = t(el.dataset.i18nPlaceholder);
   }
+  for (const el of document.querySelectorAll("[data-i18n-aria]")) {
+    el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  }
   for (const btn of document.querySelectorAll(".lang button")) {
     btn.classList.toggle("on", btn.dataset.lang === lang);
     btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
@@ -237,11 +243,25 @@ function hideAllCombos() {
   for (const id of COMBO_LISTS) $(id)?.classList.add("hidden");
 }
 
+function closeComboInput(inputId) {
+  hideAllCombos();
+  comboSuppressUntil = Date.now() + 320;
+  const el = $(inputId);
+  if (el) el.blur();
+}
+
+function bindSuggestPick(box, selector, onPick) {
+  for (const li of box.querySelectorAll(selector)) {
+    li.addEventListener("mousedown", (e) => e.preventDefault());
+    li.onclick = () => onPick(li.dataset.value ?? li.dataset.city ?? "");
+  }
+}
+
 function showComboList(listId, items, onPick) {
   const box = $(listId);
   if (!box) return;
+  hideAllCombos();
   if (!items.length) {
-    box.classList.add("hidden");
     return;
   }
   box.classList.remove("hidden");
@@ -254,9 +274,7 @@ function showComboList(listId, items, onPick) {
         `</li>`
     )
     .join("");
-  for (const li of box.querySelectorAll("li")) {
-    li.onclick = () => onPick(li.dataset.value || "");
-  }
+  bindSuggestPick(box, "li", onPick);
 }
 
 function filterByQuery(options, query, extraKeys = []) {
@@ -332,7 +350,28 @@ function syncFilterInputs() {
   const srt = $("sort");
   if (srt) srt.value = sortLabel(state.sort || "name");
   const city = $("city");
-  if (city && state.city) city.value = state.city;
+  if (city) city.value = state.city || "";
+  updateClearButtons();
+}
+
+function updateClearButtons() {
+  const show = {
+    category: !!state.category,
+    industry: !!state.industry,
+    city: !!state.city,
+    sort: !!state.sort && state.sort !== "name",
+  };
+  for (const [field, on] of Object.entries(show)) {
+    const btn = document.querySelector(`.combo-clear[data-clear="${field}"]`);
+    if (btn) btn.classList.toggle("hidden", !on);
+  }
+}
+
+function clearComboField(field) {
+  if (field === "category") pickCategory("");
+  else if (field === "industry") pickIndustry("");
+  else if (field === "city") pickCity("");
+  else if (field === "sort") pickSort("name");
 }
 
 function openCategoryCombo() {
@@ -342,10 +381,11 @@ function openCategoryCombo() {
 function pickCategory(id) {
   state.category = id;
   $("category").value = id ? categoryLabel(id) : "";
-  hideAllCombos();
+  closeComboInput("category");
   state.industry = "";
   $("industry").value = "";
   state.page = 1;
+  updateClearButtons();
   loadIndustries().then(() => refresh({ fit: true }));
 }
 
@@ -356,8 +396,9 @@ function openIndustryCombo() {
 function pickIndustry(id) {
   state.industry = id;
   $("industry").value = id ? industryLabel(id) : "";
-  hideAllCombos();
+  closeComboInput("industry");
   state.page = 1;
+  updateClearButtons();
   refresh({ fit: true });
 }
 
@@ -368,16 +409,21 @@ function openSortCombo() {
 function pickSort(id) {
   state.sort = id || "name";
   $("sort").value = sortLabel(state.sort);
-  hideAllCombos();
+  closeComboInput("sort");
   state.page = 1;
+  updateClearButtons();
   loadList();
 }
 
 function bindCombo(inputId, openFn, pickFromInput) {
   const input = $(inputId);
   if (!input) return;
-  input.addEventListener("focus", openFn);
-  input.addEventListener("click", openFn);
+  const maybeOpen = () => {
+    if (Date.now() < comboSuppressUntil) return;
+    openFn();
+  };
+  input.addEventListener("focus", maybeOpen);
+  input.addEventListener("click", maybeOpen);
   input.addEventListener("input", openFn);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Escape") hideAllCombos();
@@ -688,6 +734,13 @@ async function boot() {
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".combo-field")) hideAllCombos();
   });
+  for (const btn of document.querySelectorAll(".combo-clear")) {
+    btn.addEventListener("mousedown", (e) => e.preventDefault());
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearComboField(btn.dataset.clear);
+    });
+  }
   document.querySelector(".must").addEventListener("change", (e) => {
     const box = e.target.closest("input[data-flag]");
     if (!box) return;
@@ -783,17 +836,15 @@ function onCityInput() {
 
 function renderCitySuggest(items) {
   const box = $("city-suggest");
+  hideAllCombos();
   if (!items.length) {
-    box.classList.add("hidden");
     return;
   }
   box.classList.remove("hidden");
   box.innerHTML = items
     .map((c) => `<li role="option" data-city="${esc(c.name)}"><span>${esc(c.name)}</span><span class="n">${fmt(c.n)}</span></li>`)
     .join("");
-  for (const li of box.querySelectorAll("li")) {
-    li.onclick = () => pickCity(li.dataset.city);
-  }
+  bindSuggestPick(box, "li", (name) => pickCity(name));
 }
 
 function pickCity(name) {
@@ -801,16 +852,18 @@ function pickCity(name) {
   if (!exact) {
     state.city = "";
     $("city").value = "";
-    hideAllCombos();
+    closeComboInput("city");
     state.page = 1;
+    updateClearButtons();
     industryCache = { city: null, items: null };
     loadIndustries().then(() => refresh({ fit: true }));
     return;
   }
   state.city = exact;
   $("city").value = exact;
-  hideAllCombos();
+  closeComboInput("city");
   state.page = 1;
+  updateClearButtons();
   if (industryCache.city !== exact) industryCache = { city: null, items: null };
   loadIndustries().then(() => refresh({ fit: true }));
 }
